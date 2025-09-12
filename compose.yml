@@ -1,0 +1,81 @@
+services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-storage:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin4
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_LISTEN_PORT: 80
+      PGADMIN_CONFIG_UPGRADE_CHECK_ENABLED: "False"
+      PGADMIN_SERVER_JSON_FILE: /pgadmin4/servers.json
+    volumes:
+      - pgadmin-storage:/var/lib/pgadmin
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: always
+    environment:
+      GF_SERVER_ROOT_URL: ${GF_SERVER_ROOT_URL}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+      GF_SERVER_HTTP_PORT: 3000
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER}
+      GF_SECURITY_ALLOW_EMBEDDING: true
+      GF_AUTH_ANONYMOUS_ENABLED: true
+      GF_USERS_DEFAULT_THEME: light
+      GF_RENDERING_SERVER_URL: ${GF_RENDERING_SERVER_URL}
+      GF_RENDERING_CALLBACK_URL: ${GF_RENDERING_CALLBACK_URL}
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
+      - ./grafana/dashboard-provisioning.yml:/etc/grafana/provisioning/dashboards/dashboard-provisioning.yml
+      - ./grafana/dashboard_smard.json:/var/lib/grafana/dashboards/dashboard_smard.json
+      - ./grafana/dashboard_heating_optimization.json:/var/lib/grafana/dashboards/dashboard_heating_optimization.json
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+  renderer:
+    image: grafana/grafana-image-renderer:latest
+    container_name: renderer
+    restart: always
+    ports:
+      - "8081:8081"
+  forest-ensys:
+    image: forest-ensys:latest
+    build: .
+    container_name: forest-ensys
+    restart: always
+    environment:
+      - POSTGRES_SERVER=${POSTGRES_SERVER}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - SQLALCHEMY_DATABASE_URI=${SQLALCHEMY_DATABASE_URI}
+      - GRB_LICENSE_FILE=/opt/gurobi/gurobi.lic
+    ports:
+      - "9012:9000"
+    volumes:
+      - ./gurobi.lic:/opt/gurobi/gurobi.lic:ro
+volumes:
+  postgres-storage:
+  pgadmin-storage:
+  grafana-storage:
+  
