@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from forest_ensys import crud, model, schemas
 from forest_ensys.api import deps
-from forest_ensys.core.timeseries_hepers import (
+from forest_ensys.core.timeseries_helpers import (
     check_granularity_and_merge,
     calculate_dynamic_network_fee,
 )

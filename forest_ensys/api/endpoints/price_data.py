@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from forest_ensys import crud, model, schemas
 from forest_ensys.api import deps
-from forest_ensys.core.timeseries_hepers import ensure_consistent_granularity
+from forest_ensys.core.timeseries_helpers import ensure_consistent_granularity
 import pandas as pd
 
 router = APIRouter()
