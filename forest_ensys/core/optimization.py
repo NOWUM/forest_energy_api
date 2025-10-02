@@ -15,6 +15,8 @@ from pyomo.environ import (
     value,
     Binary,
 )
+from pyomo.contrib.solver.solvers.highs import Highs
+import gurobipy as gp
 import pandas as pd
 import random
 
@@ -208,16 +210,24 @@ def optimize_dryers(
 
     model.total_cost = Objective(rule=total_cost_rule, sense=minimize)
 
-    solver = SolverFactory("gurobi")
-    solver.options["MIPGap"] = 0.001
-    solver.options["TimeLimit"] = 120
-    solver.options["OutputFlag"] = 1
-    solver.options["Threads"] = 4
-    
-    results = solver.solve(model)
-
-    print(results.solver.termination_condition)
-    print(value(model.total_cost))
+    # Use Gurobi if licensed; otherwise use HiGHS
+    try:
+        solver = SolverFactory("gurobi")
+        solver.options["MIPGap"] = 0.001
+        solver.options["TimeLimit"] = 120
+        solver.options["OutputFlag"] = 1
+        solver.options["Threads"] = 4
+        solver.solve(model)
+    except gp.GurobiError as e:
+        print(f"Using HiGHS because Gurobi Error: {e}")
+        opt = Highs()
+        opt.solve(
+            model,
+            time_limit=240,
+            threads=4,
+            solver_options={"mip_rel_gap": 0.001},
+            tee=False,
+        )
 
     optimized_results_df = pd.DataFrame(
         {

@@ -1,4 +1,4 @@
-https://github.com/calliope-project/calliope/archive/refs/tags/v0.7.0.dev4.zip
+pyomo
 fastapi
 sqlalchemy
 gunicorn
@@ -16,3 +16,5 @@ psycopg2-binary
 gurobipy
 openpyxl
 aas-core3.0
+highspy
+https://github.com/calliope-project/calliope/archive/refs/tags/v0.7.0.dev7.zip
