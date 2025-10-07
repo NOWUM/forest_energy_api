@@ -14,17 +14,16 @@ from datetime import datetime
 
 class CRUDProcessHeat(CRUDBase[ProcessHeat, ProcessHeatCreate, ProcessHeatUpdate]):
     def get_from_start_date(
-        self, db: Session, user_id: int, start_date: str
+        self, db: Session, start_date: str
     ) -> Optional[ProcessHeat]:
         return db.query(ProcessHeat).filter(
-            ProcessHeat.ref_created_by == user_id, ProcessHeat.timestamp >= start_date
+            ProcessHeat.timestamp >= start_date
         )
 
     def create(
-        self, db: Session, *, obj_in: ProcessHeatCreate, user_id: int
+        self, db: Session, *, obj_in: ProcessHeatCreate
     ) -> ProcessHeat:
         obj_in_dict = obj_in.dict()
-        obj_in_dict["ref_created_by"] = user_id
         db_obj = super().create(db, obj_in=obj_in_dict)
         return db_obj
     

@@ -50,10 +50,6 @@ class ProcessHeatInDBBase(ProcessHeatBase):
         None, description="id of the ProcessHeat entry", example=1
     )
 
-    ref_created_by: Optional[int] = Field(
-        None, description="if of who send this heat entry", example="1"
-    )
-
     class Config:
         from_attributes = True
 

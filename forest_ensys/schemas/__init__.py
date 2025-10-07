@@ -6,8 +6,6 @@
 This package contains every model that is returned from the Rest-API.
 """
 
-from .user import User, UserCreate, UserInDB, UserUpdate
-from .token import Token, TokenPayload
 from .grid import Grid, GridCreate, GridUpdate
 from .process_electricity import (
     ProcessElectricity,

@@ -26,21 +26,12 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         return db.query(self.model).filter(self.model.id == id).first()
 
     def get_multi(
-        self, db: Session, *, skip: int = 0, limit: int = 100, user_id: int = None
+        self, db: Session, *, skip: int = 0, limit: int = 100
     ) -> List[ModelType]:
-        if user_id:
-            return (
-                db.query(self.model)
-                .filter(self.model.ref_created_by == user_id)
-                .offset(skip)
-                .limit(limit)
-                .all()
-            )
-        else:
-            return db.query(self.model).offset(skip).limit(limit).all()
+        return db.query(self.model).offset(skip).limit(limit).all()
         
     def get_multi_by_date_range(
-        self, db: Session, user_id: Optional[int] = None, start_date: datetime = None, end_date: datetime = None
+        self, db: Session, start_date: datetime = None, end_date: datetime = None
     ) -> Optional[pd.DataFrame]:
         # Basisabfrage
         query = f"""
@@ -48,17 +39,11 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             FROM {self.model.__tablename__}
             WHERE timestamp BETWEEN :start_date AND :end_date
         """
-        
-        # Dynamische Bedingung hinzufügen, falls user_id gesetzt ist
-        if user_id is not None:
-            query += " AND ref_created_by = :user_id"
-        
         # Abfrage ausführen
         result = pd.read_sql_query(
             sql=text(query),
             con=db.connection(),
             params={
-                "user_id": user_id,
                 "start_date": start_date,
                 "end_date": end_date,
             }
@@ -91,7 +76,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         return db_obj
 
     def create_multi(
-        self, db: Session, *, obj_in: List[Union[CreateSchemaType, ModelType, dict]], ref_created_by: Optional[int] = None
+        self, db: Session, *, obj_in: List[Union[CreateSchemaType, ModelType, dict]]
     ) -> List[ModelType]:
         
         def _bulk_set_attr(objs: list, attr: str, value: Any):
@@ -103,8 +88,6 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             db_obj = [self.model(**data) for data in obj_in]
         else:
             raise ValueError("Invalid input type")
-        if ref_created_by and db_obj[0].ref_created_by is None:
-            _bulk_set_attr(db_obj, 'ref_created_by', ref_created_by)
 
         db.add_all(db_obj)
         db.commit()

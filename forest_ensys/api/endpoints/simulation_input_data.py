@@ -39,7 +39,6 @@ router = APIRouter()
 async def upload_simulation_input_data(
     file: UploadFile = File(...),
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
     name: str = Query(
         "flexibility_timeseries",
         enum=["flexible_device_demand", "total_electricity_demand"],
@@ -102,7 +101,7 @@ async def upload_simulation_input_data(
         df["value"] = df["value"] * heating_value * conversion_factor
     elif unit.lower() == "kw":
         df["value"] = df["value"] * granularity
-    crud.simulation_input_data.create_multi(db, obj_in=df.to_dict(orient="records"), ref_created_by=current.id)
+    crud.simulation_input_data.create_multi(db, obj_in=df.to_dict(orient="records"))
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={"status": "success", "message": "Data uploaded successfully"},
@@ -117,7 +116,6 @@ async def upload_simulation_input_data(
 )
 def delete_simulation_input_data(
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
     name: str = Query(
         "flexibility_timeseries",
         enum=["flexible_device_demand", "total_electricity_demand"],
@@ -127,7 +125,7 @@ def delete_simulation_input_data(
     """
     Delete all simulation input data.
     """
-    crud.simulation_input_data.delete_by_user_and_name(db, user_id=current.id, name=name)
+    crud.simulation_input_data.delete_by_name(db, name=name)
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={"status": "success", "message": "Data deleted successfully"},

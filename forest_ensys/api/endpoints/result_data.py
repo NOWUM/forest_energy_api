@@ -22,14 +22,13 @@ router = APIRouter()
 )
 def delete_result_data(
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
     optimization_case_name: str = Query(
         ..., description="The name of the optimization case."
     ),
 ):
     try:
-        crud.optimization_results.delete_by_user_id_and_optimization_case_name(
-            db, user_id=current.id, optimization_case_name=optimization_case_name
+        crud.optimization_results.delete_by_optimization_case_name(
+            db, optimization_case_name=optimization_case_name
         )
         return JSONResponse(
             status_code=status.HTTP_200_OK,

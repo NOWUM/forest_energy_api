@@ -6,7 +6,6 @@
 This package contains the CRUD operations (CREATE, READ, UPDATE, DELETE) for each repository/table in database.
 """
 
-from .user import user
 from .grid import grid
 from .process_electricity import process_electricity
 from .process_heat import process_heat

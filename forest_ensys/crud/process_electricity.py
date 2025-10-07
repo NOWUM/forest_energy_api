@@ -15,18 +15,16 @@ class CRUDProcessElectricity(
     CRUDBase[ProcessElectricity, ProcessElectricityCreate, ProcessElectricityUpdate]
 ):
     def get_from_start_date(
-        self, db: Session, user_id: int, start_date: str
+        self, db: Session, start_date: str
     ) -> Optional[ProcessElectricity]:
         return db.query(ProcessElectricity).filter(
-            ProcessElectricity.ref_created_by == user_id,
             ProcessElectricity.timestamp >= start_date,
         )
 
     def create(
-        self, db: Session, *, obj_in: ProcessElectricityCreate, user_id: int
+        self, db: Session, *, obj_in: ProcessElectricityCreate
     ) -> ProcessElectricity:
         obj_in_dict = obj_in.dict()
-        obj_in_dict["ref_created_by"] = user_id
         db_obj = super().create(db, obj_in=obj_in_dict)
         return db_obj
 

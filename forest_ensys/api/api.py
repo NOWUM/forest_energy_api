@@ -5,8 +5,6 @@
 from fastapi import APIRouter
 
 from .endpoints import (
-    authentication,
-    users,
     grid_data,
     process_electricity_data,
     process_heat_data,
@@ -21,10 +19,6 @@ from .endpoints import (
 )
 
 api_router = APIRouter()
-api_router.include_router(
-    authentication.router, prefix="/auth", tags=["Authentication"]
-)
-api_router.include_router(users.router, prefix="/users", tags=["Users"])
 api_router.include_router(grid_data.router, prefix="/grid-data", tags=["Grid Data"])
 api_router.include_router(
     emissions_data.router, prefix="/emissions-data", tags=["Emissions Data"]

@@ -20,14 +20,13 @@ router = APIRouter()
 @router.get("/", response_model=List[schemas.Model])
 def get_all_model_data(
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
     skip: int = 0,
     limit: int = 100,
 ) -> List[schemas.Model]:
     """
     Retrieve all contraints data
     """
-    model_data = crud.model.get_multi(db=db, user_id=current.id, skip=skip, limit=limit)
+    model_data = crud.model.get_multi(db=db, skip=skip, limit=limit)
     return model_data
 
 
@@ -35,12 +34,11 @@ def get_all_model_data(
 def add_model_data(
     request: schemas.ModelCreate,
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
 ):
     """
     Create a new model
     """
-    return crud.model.create(db=db, obj_in=request, user_id=current.id)
+    return crud.model.create(db=db, obj_in=request)
 
 
 @router.get("/{model_id}/optimize")
@@ -49,17 +47,16 @@ def optimize_model_by_id(
     start_date: datetime = None,
     end_date: datetime = None,
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
 ) -> str:
     """
     Optimize the model by id
     """
     model = crud.model.get(db=db, id=model_id)
     electricity_data = crud.process_electricity.get_multi_by_date_range(
-        db=db, user_id=current.id, start_date=start_date, end_date=end_date
+        db=db, start_date=start_date, end_date=end_date
     )
     heat_data = crud.process_heat.get_multi_by_date_range(
-        db=db, user_id=current.id, start_date=start_date, end_date=end_date
+        db=db, start_date=start_date, end_date=end_date
     )
     if electricity_data is None or heat_data is None:
         raise HTTPException(
@@ -85,20 +82,19 @@ def optimize_model_by_name(
     model_name: str,
     start_date: str,
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
 ) -> str:
     """
     Optimize the model by name
     """
     model = crud.model.get_by_name(db=db, name=model_name)
     electricity_data = crud.process_electricity.get_from_start_date(
-        db=db, user_id=current.id, start_date=start_date
+        db=db, start_date=start_date
     )
     electricity_data_df = pd.read_sql(
         electricity_data.statement, electricity_data.session.connection()
     )
     heat_data = crud.process_heat.get_from_start_date(
-        db=db, user_id=current.id, start_date=start_date
+        db=db, start_date=start_date
     )
     heat_data_df = pd.read_sql(heat_data.statement, heat_data.session.connection())
     if electricity_data_df.empty or heat_data_df.empty:
@@ -122,7 +118,6 @@ def optimize_model_by_name(
 def delete_model_by_name(
     model_name: str,
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
 ):
     """
     Delete a model by name

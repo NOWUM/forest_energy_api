@@ -18,7 +18,6 @@ router = APIRouter()
 @router.get("/", response_model=List[schemas.Prices])
 def get_all_price_data(
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
     skip: int = 0,
     limit: int = 100,
 ) -> List[schemas.Prices]:
@@ -32,7 +31,6 @@ def get_all_price_data(
 def get_price_data_by_source(
     source: str,
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
     skip: int = 0,
     limit: int = 100,
 ) -> List[schemas.Prices]:
@@ -66,7 +64,6 @@ def get_price_data_by_source(
 async def upload_price_data(
     file: UploadFile = File(...),
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
     delimiter: str = ";",
     skiprows: int = 3,
     DateTimeColumn: str = "timestamp",

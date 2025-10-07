@@ -76,7 +76,6 @@ def delete_grid_data(db: Session = Depends(deps.get_db)) -> Text:
 @router.get("/", response_model=List[schemas.Grid])
 def get_all_grid_data(
     db: Session = Depends(deps.get_db),
-    current: model.Grid = Depends(deps.get_current_user),
     skip: int = 0,
     limit: int = 100,
 ) -> List[schemas.Grid]:

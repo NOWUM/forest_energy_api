@@ -46,10 +46,6 @@ class DataParcInDBBase(DataParcBase):
     Process entry to return via API
     """
 
-    ref_created_by: Optional[int] = Field(
-        None, description="if of who send this  entry", example="1"
-    )
-
     class Config:
         from_attributes = True
 

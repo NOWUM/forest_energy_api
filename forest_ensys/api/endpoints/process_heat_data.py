@@ -16,7 +16,6 @@ router = APIRouter()
 @router.get("/", response_model=List[schemas.ProcessHeat])
 def get_all_process_heat_data(
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
     skip: int = 0,
     limit: int = 100,
 ) -> List[model.ProcessHeat]:
@@ -24,7 +23,7 @@ def get_all_process_heat_data(
     Retrieve all heat data
     """
     process_heat_data = crud.process_heat.get_multi(
-        db=db, user_id=current.id, skip=skip, limit=limit
+        db=db, skip=skip, limit=limit
     )
     return process_heat_data
 
@@ -33,9 +32,8 @@ def get_all_process_heat_data(
 def add_process_heat_data(
     request: schemas.ProcessHeatCreate,
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
 ) -> model.ProcessHeat:
     """
     Create a new process heat data
     """
-    return crud.process_heat.create(db=db, obj_in=request, user_id=current.id)
+    return crud.process_heat.create(db=db, obj_in=request)

@@ -16,12 +16,11 @@ router = APIRouter()
 def add_process_data(
     request: schemas.DataParcCreate,
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
 ):
     """
     Create a new process data
     """
-    return crud.data_parc.create(db=db, obj_in=request, user_id=current.id)
+    return crud.data_parc.create(db=db, obj_in=request)
 
 @router.delete(
     "/",

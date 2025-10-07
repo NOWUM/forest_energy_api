@@ -11,9 +11,8 @@ from datetime import datetime
 
 
 class CRUDDataParc(CRUDBase[DataParc, DataParcCreate, DataParcUpdate]):
-    def create(self, db: Session, *, obj_in: DataParcCreate, user_id: int) -> DataParc:
+    def create(self, db: Session, *, obj_in: DataParcCreate) -> DataParc:
         obj_in_dict = obj_in.dict()
-        obj_in_dict["ref_created_by"] = user_id
         db_obj = super().create(db, obj_in=obj_in_dict)
         return db_obj
     

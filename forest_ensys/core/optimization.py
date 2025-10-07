@@ -281,15 +281,15 @@ def optimize_dryers(
 
     return {
         "optimized_results_df": round(optimized_results_df, 2),
-        "total_energy_demand": round(total_energy_demand_kWh, 2),
-        "electricity_used": round(electricity_used_kWh, 2),
-        "gas_usage": round(gas_usage_kWh, 2),
-        "cost_savings": round(cost_savings_euro, 2),
-        "cost_gas_only": round(cost_gas_only, 2),
-        "cost_with_electric_heating": round(cost_optimized_euro, 2),
-        "emissions_savings": round(emissions_savings_tonnes, 2),
-        "emissions_gas_only": round(emissions_gas_only_tonnes, 2),
-        "emissions_with_electric_heating": round(emissions_optimized_tonnes, 2),
+        "total_energy_demand": float(round(total_energy_demand_kWh, 2)),
+        "electricity_used": float(round(electricity_used_kWh, 2)),
+        "gas_usage": float(round(gas_usage_kWh, 2)),
+        "cost_savings": float(round(cost_savings_euro, 2)),
+        "cost_gas_only": float(round(cost_gas_only, 2)),
+        "cost_with_electric_heating": float(round(cost_optimized_euro, 2)),
+        "emissions_savings": float(round(emissions_savings_tonnes, 2)),
+        "emissions_gas_only": float(round(emissions_gas_only_tonnes, 2)),
+        "emissions_with_electric_heating": float(round(emissions_optimized_tonnes, 2)),
     }
 
 

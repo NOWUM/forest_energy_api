@@ -38,13 +38,12 @@ router = APIRouter()
 )
 def delete_flexibility_data(
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
 ) -> Text:
     """
     Delete all flexibility data
     """
-    crud.flexible_power.delete(db=db, user_id=current.id)
-    crud.optimization_results.delete(db=db, user_id=current.id)
+    crud.flexible_power.delete(db=db)
+    crud.optimization_results.delete(db=db)
     raise HTTPException(
         status_code=200, detail="Flexibility data table deleted successfully"
     )
@@ -57,16 +56,15 @@ def delete_flexibility_data(
 def delete_optimization_case(
     optimization_case_name: str,
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
 ) -> Text:
     """
     Delete a specific optimization case
     """
-    crud.flexible_power.delete_by_user_id_and_optimization_case_name(
-        db=db, user_id=current.id, optimization_case_name=optimization_case_name
+    crud.flexible_power.delete_by_optimization_case_name(
+        db=db, optimization_case_name=optimization_case_name
     )
-    crud.optimization_results.delete_by_user_id_and_optimization_case_name(
-        db=db, user_id=current.id, optimization_case_name=optimization_case_name
+    crud.optimization_results.delete_by_optimization_case_name(
+        db=db, optimization_case_name=optimization_case_name
     )
     raise HTTPException(
         status_code=200, detail="Optimization case deleted successfully"
@@ -80,7 +78,6 @@ def delete_optimization_case(
 )
 def optimize_flexibility(
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
     start_date: datetime = "2024-10-01",
     end_date: datetime = "2024-10-31",
     flexible_power: float = 8000,  # kW
@@ -92,18 +89,18 @@ def optimize_flexibility(
     """
     Binary decision problem to optimize the use of electric heating
     """
-    crud.flexible_power.delete_by_user_id_and_optimization_case_name(
-        db=db, user_id=current.id, optimization_case_name="binary_decision_problem"
+    crud.flexible_power.delete_by_optimization_case_name(
+        db=db, optimization_case_name="binary_decision_problem"
     )
-    crud.optimization_results.delete_by_user_id_and_optimization_case_name(
-        db=db, user_id=current.id, optimization_case_name="binary_decision_problem"
+    crud.optimization_results.delete_by_optimization_case_name(
+        db=db, optimization_case_name="binary_decision_problem"
     )
     # Retrieve data from database
     footprint_data = crud.footprint.get_multi_by_date_range(
         db=db, start_date=start_date, end_date=end_date
     )
     heat_demand = crud.data_parc.get_multi_by_date_range(
-        db=db, user_id=current.id, start_date=start_date, end_date=end_date
+        db=db, start_date=start_date, end_date=end_date
     )
     price_data = crud.prices.get_multi_by_date_range_and_source(
         db=db,
@@ -183,7 +180,6 @@ def optimize_flexibility(
             "electricity_used": flexible_power_time_series["electricity_used"],
             "low_price_window": 0,
             "optimization_case_name": "binary_decision_problem",
-            "ref_created_by": current.id,
         }
     )
 
@@ -193,7 +189,6 @@ def optimize_flexibility(
 
     optimization_results = {
         "name": "binary_decision_problem",
-        "ref_created_by": current.id,
         "time_from": start_date,
         "time_to": end_date,
         "network_fee_type": "static",
@@ -225,22 +220,21 @@ def optimize_flexibility(
 )
 def optimize_flexibility_aas_data(
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
 ) -> schemas.OptimizationResult:
     """
     Binary decision problem to optimize the use of electric heating
     """
     parameters = get_data_from_aas()
-    crud.flexible_power.delete_by_user_id_and_optimization_case_name(
-        db=db, user_id=current.id, optimization_case_name="binary_decision_problem"
+    crud.flexible_power.delete_by_optimization_case_name(
+        db=db, optimization_case_name="binary_decision_problem"
     )
     flexible_power = int(parameters["powerMax"])
     electricity_network_fee = int(parameters["electricityNetworkFee"])
     gas_emissions_factor = 204
     cost_per_mwh_gas = int(parameters["gasPrice"])
     co2_price = int(parameters["co2Price"])
-    crud.optimization_results.delete_by_user_id_and_optimization_case_name(
-        db=db, user_id=current.id, optimization_case_name="binary_decision_problem"
+    crud.optimization_results.delete_by_optimization_case_name(
+        db=db, optimization_case_name="binary_decision_problem"
     )
     # Retrieve data from database
     footprint_data = crud.footprint.get_multi_by_date_range(
@@ -248,7 +242,6 @@ def optimize_flexibility_aas_data(
     )
     heat_demand = crud.data_parc.get_multi_by_date_range(
         db=db,
-        user_id=current.id,
         start_date=parameters["from"],
         end_date=parameters["until"],
     )
@@ -330,7 +323,6 @@ def optimize_flexibility_aas_data(
             "electricity_used": flexible_power_time_series["electricity_used"],
             "low_price_window": 0,
             "optimization_case_name": "binary_decision_problem",
-            "ref_created_by": current.id,
         }
     )
 
@@ -340,7 +332,6 @@ def optimize_flexibility_aas_data(
 
     optimization_results = {
         "name": "binary_decision_problem",
-        "ref_created_by": current.id,
         "time_from": parameters["from"],
         "time_to": parameters["until"],
         "network_fee_type": "static",
@@ -378,7 +369,6 @@ def optimize_flexibility_aas_data(
 )
 def optimize_dryers(
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
     start_date: datetime = Query(
         "2024-01-01", description="Start date for the optimization period."
     ),
@@ -472,7 +462,7 @@ def optimize_dryers(
         )
     if (
         crud.optimization_results.get(
-            db=db, user_id=current.id, optimization_case_name=optimization_case_name
+            db=db, optimization_case_name=optimization_case_name
         )
         is not None
     ):
@@ -489,7 +479,6 @@ def optimize_dryers(
         )
     heat_demand = crud.simulation_input_data.get_multi_by_date_range_and_name(
         db=db,
-        user_id=current.id,
         start_date=start_date,
         end_date=end_date,
         name="flexible_device_demand",
@@ -503,7 +492,6 @@ def optimize_dryers(
     total_electricity_demand = (
         crud.simulation_input_data.get_multi_by_date_range_and_name(
             db=db,
-            user_id=current.id,
             start_date=start_date,
             end_date=end_date,
             name="total_electricity_demand",
@@ -693,7 +681,6 @@ def optimize_dryers(
             ],
             "low_price_window": merged_data["window_type"],
             "optimization_case_name": optimization_case_name,
-            "ref_created_by": current.id,
         }
     )
 
@@ -701,23 +688,23 @@ def optimize_dryers(
     optimization_results["time_from"] = start_date
     optimization_results["time_to"] = end_date
     optimization_results["network_fee_type"] = network_fee
-    optimization_results["network_fee"] = network_fee_value
-    optimization_results["full_load_hours"] = full_load_hours
-    optimization_results["full_load_hours_after_optimization"] = (
+    optimization_results["network_fee"] = float(network_fee_value)
+    optimization_results["full_load_hours"] = float(full_load_hours)
+    optimization_results["full_load_hours_after_optimization"] = float(
         full_load_hours_after_optimization
     )
-    optimization_results["mean_electricity_price_when_heating"] = round(
+    optimization_results["mean_electricity_price_when_heating"] = float(round(
         mean_electricity_price_when_heating, 2
-    )
-    optimization_results["electric_heating_in_low_price_windows_ratio"] = round(
+    ))
+    optimization_results["electric_heating_in_low_price_windows_ratio"] = float(round(
         electric_heating_in_low_price_windows_ratio, 2
-    )
+    ))
     try:
         crud.flexible_power.create_multi(
             db=db, obj_in=flexible_power.to_dict(orient="records")
         )
         return crud.optimization_results.create(
-            db=db, obj_in=optimization_results, user_id=current.id
+            db=db, obj_in=optimization_results
         )
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

@@ -11,28 +11,24 @@ from forest_ensys.model import OptimizationResult
 
 class CRUDOptimizationResults(CRUDBase[OptimizationResult, Any, Any]):
     def create(
-        self, db: Session, *, obj_in: OptimizationResult, user_id: int = None
+        self, db: Session, *, obj_in: OptimizationResult
     ) -> OptimizationResult:
-        if user_id is not None:
-            obj_in["ref_created_by"] = user_id
         db_obj = super().create(db, obj_in=obj_in)
         return db_obj
     
-    def get(self, db: Session, *, user_id: int, optimization_case_name: str) -> Optional[OptimizationResult]:
+    def get(self, db: Session, *, optimization_case_name: str) -> Optional[OptimizationResult]:
         return db.query(self.model).filter(
-            self.model.ref_created_by == user_id,
             self.model.name == optimization_case_name,
         ).first()
     
-    def delete(self, db: Session, *, user_id: int) -> None:
-        db.query(self.model).filter(self.model.ref_created_by == user_id).delete()
+    def delete(self, db: Session) -> None:
+        db.query(self.model).delete()
         db.commit()
         
-    def delete_by_user_id_and_optimization_case_name(
-        self, db: Session, *, user_id: int, optimization_case_name: str
+    def delete_by_optimization_case_name(
+        self, db: Session, *, optimization_case_name: str
     ) -> None:
         db.query(self.model).filter(
-            self.model.ref_created_by == user_id,
             self.model.name == optimization_case_name,
         ).delete()
         db.commit()

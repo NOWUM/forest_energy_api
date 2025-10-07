@@ -67,7 +67,6 @@ def update_footprint_data(db: Session = Depends(deps.get_db)):
 @router.get("/", response_model=List[schemas.Footprint])
 def get_all_footprint_data(
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
     skip: int = 0,
     limit: int = 100,
 ) -> List[schemas.Footprint]:

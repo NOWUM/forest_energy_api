@@ -14,8 +14,8 @@ def generate_calliope_model(
     Generates a calliope model from a dictionary.
     """
     model_def = calliope.AttrDict.from_yaml_string(str(model_dict))
-    electricity_data.drop(columns=["id","ref_created_by"], inplace=True)    
-    heat_data.drop(columns=["id","ref_created_by"], inplace=True)
+    electricity_data.drop(columns=["id"], inplace=True)    
+    heat_data.drop(columns=["id"], inplace=True)
     electricity_data.rename(columns={"timestamp": "timesteps"}, inplace=True)
     heat_data.rename(columns={"timestamp": "timesteps"}, inplace=True)
     electricity_data = electricity_data.set_index("timesteps")

@@ -16,7 +16,6 @@ router = APIRouter()
 @router.get("/", response_model=List[schemas.ProcessElectricity])
 def get_all_process_electricity_data(
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
     skip: int = 0,
     limit: int = 100,
 ) -> List[schemas.ProcessElectricity]:
@@ -24,7 +23,7 @@ def get_all_process_electricity_data(
     Retrieve all electricity data
     """
     process_electricity_data = crud.process_electricity.get_multi(
-        db=db, user_id=current.id, skip=skip, limit=limit
+        db=db, skip=skip, limit=limit
     )
     return process_electricity_data
 
@@ -33,9 +32,8 @@ def get_all_process_electricity_data(
 def add_process_electricity_data(
     request: schemas.ProcessElectricityCreate,
     db: Session = Depends(deps.get_db),
-    current: model.User = Depends(deps.get_current_user),
 ):
     """
     Create a new process_electricity
     """
-    return crud.process_electricity.create(db=db, obj_in=request, user_id=current.id)
+    return crud.process_electricity.create(db=db, obj_in=request)

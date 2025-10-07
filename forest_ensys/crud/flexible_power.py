@@ -33,11 +33,11 @@ class CRUDFlexiblePower(
     def get_multi_flexible_power(self, db: Session, skip: int = 0, limit: int = 100):
         return db.query(FlexiblePower).offset(skip).limit(limit).all()
     
-    def delete(self, db: Session, user_id: int):
-        return db.query(FlexiblePower).filter(FlexiblePower.ref_created_by == user_id).delete()
+    def delete(self, db: Session):
+        return db.query(FlexiblePower).delete()
     
-    def delete_by_user_id_and_optimization_case_name(self, db: Session, user_id, optimization_case_name: str):
-        return db.query(FlexiblePower).filter(FlexiblePower.ref_created_by == user_id, FlexiblePower.optimization_case_name == optimization_case_name).delete()
+    def delete_by_optimization_case_name(self, db: Session, optimization_case_name: str):
+        return db.query(FlexiblePower).filter(FlexiblePower.optimization_case_name == optimization_case_name).delete()
 
 
 flexible_power = CRUDFlexiblePower(FlexiblePower)

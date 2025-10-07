@@ -125,9 +125,6 @@ class ModelInDBBase(ModelBase):
     id: Optional[int] = Field(
         None, description="Unique identifier for each calliope model entry"
     )
-    ref_created_by: Optional[int] = Field(
-        None, description="Reference to the user who created the calliope model entry"
-    )
 
     class Config:
         from_attributes = True

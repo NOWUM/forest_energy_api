@@ -2,15 +2,12 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-from sqlalchemy import Column, Float, String, Integer, ForeignKey, DateTime
+from sqlalchemy import Column, Float, String, DateTime
 from forest_ensys.database.base_class import Base
 
 
 class OptimizationResult(Base):
     name = Column(String, nullable=False, primary_key=True)
-    ref_created_by = Column(
-        Integer, ForeignKey("user.id"), nullable=False, primary_key=True
-    )
     time_from = Column(DateTime, nullable=False)
     time_to = Column(DateTime, nullable=False)
     network_fee_type = Column(String, nullable=False)

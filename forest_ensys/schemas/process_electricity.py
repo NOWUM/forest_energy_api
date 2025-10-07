@@ -27,10 +27,6 @@ class ProcessElectricityInDBBase(ProcessElectricityBase):
         ...,
         description="id for every entry",
     )
-    ref_created_by: int = Field(
-        ...,
-        description="ref to user for every entry",
-    )
 
     class Config:
         from_attributes = True

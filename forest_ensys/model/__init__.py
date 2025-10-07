@@ -6,7 +6,6 @@
 This package contains all models in database
 """
 
-from .user import User
 from .grid import Grid
 from .process_electricity import ProcessElectricity
 from .process_heat import ProcessHeat
