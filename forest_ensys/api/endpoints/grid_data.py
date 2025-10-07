@@ -49,6 +49,7 @@ grid_to_factors = {
     "Pumpspeicher": "hydro",
 }
 
+
 @router.delete(
     "/",
     responses={
@@ -69,9 +70,8 @@ def delete_grid_data(db: Session = Depends(deps.get_db)) -> Text:
     crud.grid.delete(db=db)
     crud.prices.delete(db=db)
     crud.footprint.delete(db=db)
-    raise HTTPException(
-        status_code=200, detail="Grid data table deleted successfully"
-    )
+    raise HTTPException(status_code=200, detail="Grid data table deleted successfully")
+
 
 @router.get("/", response_model=List[schemas.Grid])
 def get_all_grid_data(
@@ -85,7 +85,10 @@ def get_all_grid_data(
     grid_data = crud.grid.get_multi(db=db, skip=skip, limit=limit)
     return grid_data
 
-@router.get("/update", responses={
+
+@router.get(
+    "/update",
+    responses={
         200: {
             "description": "Successful Response",
             "content": {
@@ -102,19 +105,17 @@ def get_all_grid_data(
                         "message": "Could not retrieve emissions data. Server probably offline"
                     }
                 }
-            }
+            },
         },
         404: {
             "description": "Not Found",
             "content": {
                 "application/json": {
-                    "example": {
-                        "message": "Website did not return any data."
-                    }
+                    "example": {"message": "Website did not return any data."}
                 }
-            }
-        }   
-    }
+            },
+        },
+    },
 )
 def update_recent_grid_data(db: Session = Depends(deps.get_db)):
     """
@@ -133,7 +134,9 @@ def update_recent_grid_data(db: Session = Depends(deps.get_db)):
             )
         for commodity_id, commodity_name in keys.items():
             if commodity_id != 4169:
-                latest = crud.grid.get_latest_for_commodity(db=db, commodity_id=commodity_id)
+                latest = crud.grid.get_latest_for_commodity(
+                    db=db, commodity_id=commodity_id
+                )
             else:
                 latest = crud.prices.get_latest(db=db)
             latest_in_db = None
@@ -158,7 +161,9 @@ def update_recent_grid_data(db: Session = Depends(deps.get_db)):
                         "the latest date in the database is a sunday 22:45, taking this sunday 23:00 as start date"
                     )
                     latest = latest.replace(hour=23, minute=0, second=0, microsecond=0)
-                    latest2 = latest.replace(hour=22, minute=00, second=0, microsecond=0)
+                    latest2 = latest.replace(
+                        hour=22, minute=00, second=0, microsecond=0
+                    )
             except Exception as e:
                 print(f"Using the default start date for commodity {commodity_id, e}")
                 latest = pd.to_datetime(start_date)
@@ -171,7 +176,8 @@ def update_recent_grid_data(db: Session = Depends(deps.get_db)):
             )
             if data_for_commodity.empty:
                 raise HTTPException(
-                    status_code=404, detail="Could not get data for commodity {commodity_id}"
+                    status_code=404,
+                    detail="Could not get data for commodity {commodity_id}",
                 )
             # if data_for_commodity is None:
             #    return HTTPException(status_code=404, detail="Could not reach website for crawling data")
@@ -187,9 +193,7 @@ def update_recent_grid_data(db: Session = Depends(deps.get_db)):
             if commodity_id == 4169:
                 for index, row in data_for_commodity.iterrows():
                     db_obj = model.Prices(
-                        timestamp=row["timestamp"],
-                        price=row["mwh"],
-                        source="smard"
+                        timestamp=row["timestamp"], price=row["mwh"], source="smard"
                     )
                     prices.append(db_obj)
             else:
@@ -199,15 +203,16 @@ def update_recent_grid_data(db: Session = Depends(deps.get_db)):
                         commodity_id=row["commodity_id"],
                         commodity_name=row["commodity_name"],
                         mwh=row["mwh"],
-                        co2=row["mwh"] * latest_emissions_factors[commodity_name] * 1000,
+                        co2=row["mwh"]
+                        * latest_emissions_factors[commodity_name]
+                        * 1000,
                     )
                     grid_data.append(db_obj)
         crud.grid.create_multi(db=db, obj_in=grid_data)
         crud.prices.create_multi(db=db, obj_in=prices)
         footprint_data.update_footprint_data(db)
-    raise HTTPException(
-            status_code=200, detail="Grid data updated successfully"
-        )
+    raise HTTPException(status_code=200, detail="Grid data updated successfully")
+
 
 def get_latest_emissions_factors(db: Session) -> dict:
     emissions = {}

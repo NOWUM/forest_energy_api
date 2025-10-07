@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-from typing import Optional
 from pydantic import BaseModel, Field
 from datetime import datetime
 

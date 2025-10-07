@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 from forest_ensys.crud.base import CRUDBase
 from forest_ensys.model import DataParc
 from forest_ensys.schemas import DataParcCreate, DataParcUpdate
-from datetime import datetime
 
 
 class CRUDDataParc(CRUDBase[DataParc, DataParcCreate, DataParcUpdate]):
@@ -15,9 +14,9 @@ class CRUDDataParc(CRUDBase[DataParc, DataParcCreate, DataParcUpdate]):
         obj_in_dict = obj_in.dict()
         db_obj = super().create(db, obj_in=obj_in_dict)
         return db_obj
-    
+
     def delete(self, db: Session) -> Optional[DataParc]:
         return db.query(DataParc).delete()
-    
+
 
 data_parc = CRUDDataParc(DataParc)

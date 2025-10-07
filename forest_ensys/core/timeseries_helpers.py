@@ -129,7 +129,7 @@ def calculate_dynamic_network_fee(
     network_fee_value,
     relative_network_fee_reduction,
     relative_network_fee_surcharge,
-    window_size
+    window_size,
 ):
     merged_data = merged_data.copy()
     merged_data["timestamp"] = pd.to_datetime(merged_data["timestamp"])

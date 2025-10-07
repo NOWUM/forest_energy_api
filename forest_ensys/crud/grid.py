@@ -40,7 +40,7 @@ class CRUDGrid(CRUDBase[Grid, GridCreate, GridUpdate]):
     def create(self, db: Session, obj_in: Grid | dict[str, Any]) -> Optional[Grid]:
         new_dataset: Grid = super().create(db, obj_in=obj_in)
         return new_dataset
-    
+
     def delete(self, db: Session) -> Optional[Grid]:
         return db.query(Grid).delete()
 

@@ -7,8 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from forest_ensys import crud, model, schemas
 from forest_ensys.api import deps
-from datetime import datetime
-from pyomo.environ import ConcreteModel, Var, Objective, SolverFactory, NonNegativeReals, minimize, Constraint
 
 router = APIRouter()
 
@@ -25,6 +23,8 @@ grid_to_factors = {
     "Sonstige Erneuerbare": "solar",
     "Pumpspeicher": "hydro",
 }
+
+
 @router.delete(
     "/",
     responses={
@@ -32,9 +32,7 @@ grid_to_factors = {
             "description": "Successful Response",
             "content": {
                 "application/json": {
-                    "example": {
-                        "message": "Footprint data table deleted successfully"
-                    }
+                    "example": {"message": "Footprint data table deleted successfully"}
                 }
             },
         }
@@ -48,6 +46,7 @@ def delete_footprint_data(db: Session = Depends(deps.get_db)) -> Text:
     raise HTTPException(
         status_code=200, detail="Footprint data table deleted successfully"
     )
+
 
 def update_footprint_data(db: Session = Depends(deps.get_db)):
     grid = crud.grid.get_average_co2_by_commodity(db=db)
@@ -64,6 +63,7 @@ def update_footprint_data(db: Session = Depends(deps.get_db)):
         )
     crud.footprint.create_multi(db=db, obj_in=footprint_data)
 
+
 @router.get("/", response_model=List[schemas.Footprint])
 def get_all_footprint_data(
     db: Session = Depends(deps.get_db),
@@ -74,6 +74,7 @@ def get_all_footprint_data(
     Retrieve all footprint data
     """
     return crud.footprint.get_multi(db=db, skip=skip, limit=limit)
+
 
 @router.get("/latest", response_model=schemas.Footprint)
 def get_latest_footprint_data(db: Session = Depends(deps.get_db)) -> schemas.Footprint:

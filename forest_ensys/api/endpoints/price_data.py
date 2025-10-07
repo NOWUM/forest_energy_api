@@ -7,7 +7,7 @@ from typing import List
 from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from forest_ensys import crud, model, schemas
+from forest_ensys import crud, schemas
 from forest_ensys.api import deps
 from forest_ensys.core.timeseries_helpers import ensure_consistent_granularity
 import pandas as pd
@@ -27,6 +27,7 @@ def get_all_price_data(
     price_data = crud.prices.get_multi(db=db, skip=skip, limit=limit)
     return price_data
 
+
 @router.get("/{source}", response_model=List[schemas.Prices])
 def get_price_data_by_source(
     source: str,
@@ -38,10 +39,13 @@ def get_price_data_by_source(
     Retrieve price data by source
     """
     try:
-        price_data = crud.prices.get_by_source(db=db, source=source, skip=skip, limit=limit)
+        price_data = crud.prices.get_by_source(
+            db=db, source=source, skip=skip, limit=limit
+        )
         return price_data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post(
     "/upload-price-data",
@@ -107,7 +111,7 @@ async def upload_price_data(
             status.HTTP_500_INTERNAL_SERVER_ERROR, f"Error reading CSV file: {str(e)}"
         )
     df.rename(columns={DateTimeColumn: "timestamp", ValueColumn: "price"}, inplace=True)
-    df, granularity = ensure_consistent_granularity(df, ignore_timezone=True)# TODO
+    df, granularity = ensure_consistent_granularity(df, ignore_timezone=True)  # TODO
     df["source"] = source
     crud.prices.create_multi(db, obj_in=df.to_dict(orient="records"))
     return JSONResponse(

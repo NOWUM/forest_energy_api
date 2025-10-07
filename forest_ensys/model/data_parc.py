@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 
-from sqlalchemy import Column, Integer, Double, ForeignKey, DateTime, String
+from sqlalchemy import Column, Double, DateTime, String
 
 from forest_ensys.database.base_class import Base
 

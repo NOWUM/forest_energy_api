@@ -5,7 +5,6 @@
 
 from sqlalchemy import Column, Integer
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import relationship
 
 from forest_ensys.database.base_class import Base
 

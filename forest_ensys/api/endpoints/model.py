@@ -8,7 +8,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from forest_ensys import crud, model, schemas
+from forest_ensys import crud, schemas
 from forest_ensys.api import deps
 from forest_ensys.core.calliope_model import generate_calliope_model
 import pandas as pd
@@ -62,14 +62,12 @@ def optimize_model_by_id(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Electricity data or heat data not found for model {model_id}!",
-        )   
+        )
     if model is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"Model {model_id} not found!"
         )
-    calliope_model = generate_calliope_model(
-        model.model, electricity_data, heat_data
-    )
+    calliope_model = generate_calliope_model(model.model, electricity_data, heat_data)
     calliope_model.build()
     calliope_model.solve()
     # results to html
@@ -93,9 +91,7 @@ def optimize_model_by_name(
     electricity_data_df = pd.read_sql(
         electricity_data.statement, electricity_data.session.connection()
     )
-    heat_data = crud.process_heat.get_from_start_date(
-        db=db, start_date=start_date
-    )
+    heat_data = crud.process_heat.get_from_start_date(db=db, start_date=start_date)
     heat_data_df = pd.read_sql(heat_data.statement, heat_data.session.connection())
     if electricity_data_df.empty or heat_data_df.empty:
         raise HTTPException(

@@ -5,7 +5,7 @@
 from typing import Text
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from forest_ensys import crud, model, schemas
+from forest_ensys import crud, schemas
 from forest_ensys.api import deps
 from forest_ensys.core.timeseries_helpers import (
     check_granularity_and_merge,
@@ -693,19 +693,17 @@ def optimize_dryers(
     optimization_results["full_load_hours_after_optimization"] = float(
         full_load_hours_after_optimization
     )
-    optimization_results["mean_electricity_price_when_heating"] = float(round(
-        mean_electricity_price_when_heating, 2
-    ))
-    optimization_results["electric_heating_in_low_price_windows_ratio"] = float(round(
-        electric_heating_in_low_price_windows_ratio, 2
-    ))
+    optimization_results["mean_electricity_price_when_heating"] = float(
+        round(mean_electricity_price_when_heating, 2)
+    )
+    optimization_results["electric_heating_in_low_price_windows_ratio"] = float(
+        round(electric_heating_in_low_price_windows_ratio, 2)
+    )
     try:
         crud.flexible_power.create_multi(
             db=db, obj_in=flexible_power.to_dict(orient="records")
         )
-        return crud.optimization_results.create(
-            db=db, obj_in=optimization_results
-        )
+        return crud.optimization_results.create(db=db, obj_in=optimization_results)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

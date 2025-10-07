@@ -7,7 +7,7 @@ from typing import List
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from forest_ensys import crud, model, schemas
+from forest_ensys import crud, schemas
 from forest_ensys.api import deps
 
 router = APIRouter()

@@ -22,9 +22,7 @@ def get_all_process_heat_data(
     """
     Retrieve all heat data
     """
-    process_heat_data = crud.process_heat.get_multi(
-        db=db, skip=skip, limit=limit
-    )
+    process_heat_data = crud.process_heat.get_multi(db=db, skip=skip, limit=limit)
     return process_heat_data
 
 

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from forest_ensys import crud, model
+from forest_ensys import crud
 from forest_ensys.api import deps
 
 router = APIRouter()

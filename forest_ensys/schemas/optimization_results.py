@@ -64,7 +64,9 @@ class OptimizationResult(BaseModel):
         default=None, description="The full load hours after optimization.", example=0.0
     )
     mean_electricity_price_when_heating: Optional[float] = Field(
-        default=None, description="The mean electricity price when heating.", example=0.0
+        default=None,
+        description="The mean electricity price when heating.",
+        example=0.0,
     )
     electric_heating_in_low_price_windows_ratio: Optional[float] = Field(
         default=None,

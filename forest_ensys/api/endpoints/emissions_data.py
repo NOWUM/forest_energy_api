@@ -139,7 +139,9 @@ def delete_emissions_data(db: Session = Depends(deps.get_db)) -> Text:
     )
 
 
-@router.post("/get_specific_emissions_factor", response_model=Optional[schemas.Emissions])
+@router.post(
+    "/get_specific_emissions_factor", response_model=Optional[schemas.Emissions]
+)
 def get_specific_emissions_factor(
     db: Session = Depends(deps.get_db),
     zone_key: str = "DE",

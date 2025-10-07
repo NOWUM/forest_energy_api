@@ -38,7 +38,13 @@ api_router.include_router(
     process_heat_data.router, prefix="/heat-data", tags=["Process Heat Data"]
 )
 api_router.include_router(model.router, prefix="/model", tags=["Model"])
-api_router.include_router(process_data.router, prefix="/process-data", tags=["Process Data"])
-api_router.include_router(simulation_input_data.router, prefix="/simulation-input-data", tags=["Simulation Input Data"])
+api_router.include_router(
+    process_data.router, prefix="/process-data", tags=["Process Data"]
+)
+api_router.include_router(
+    simulation_input_data.router,
+    prefix="/simulation-input-data",
+    tags=["Simulation Input Data"],
+)
 api_router.include_router(price_data.router, prefix="/prices", tags=["Prices"])
 api_router.include_router(result_data.router, prefix="/results", tags=["Results"])

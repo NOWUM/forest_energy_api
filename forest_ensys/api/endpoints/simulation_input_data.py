@@ -7,9 +7,8 @@ from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status,
 from fastapi.responses import JSONResponse
 import pandas as pd
 from sqlalchemy.orm import Session
-import sqlalchemy
 
-from forest_ensys import crud, model
+from forest_ensys import crud
 from forest_ensys.api import deps
 from forest_ensys.core.timeseries_helpers import ensure_consistent_granularity
 
@@ -106,7 +105,8 @@ async def upload_simulation_input_data(
         status_code=status.HTTP_200_OK,
         content={"status": "success", "message": "Data uploaded successfully"},
     )
-    
+
+
 @router.delete(
     "/simulation_input_data",
     responses={
@@ -120,7 +120,7 @@ def delete_simulation_input_data(
         "flexibility_timeseries",
         enum=["flexible_device_demand", "total_electricity_demand"],
         description="The name of the simulation input data. 'flexible_device_demand' is the energy demand of the flexible device. 'total_electricity_demand' is the total electricity demand of the building.",
-    ) 
+    ),
 ):
     """
     Delete all simulation input data.

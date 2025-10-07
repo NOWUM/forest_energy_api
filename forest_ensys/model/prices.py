@@ -5,6 +5,7 @@
 from sqlalchemy import Column, Double, DateTime, String
 from forest_ensys.database.base_class import Base
 
+
 class Prices(Base):
     timestamp = Column(DateTime, primary_key=True, nullable=False)
     source = Column(String, primary_key=True, nullable=False)

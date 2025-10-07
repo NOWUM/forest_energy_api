@@ -17,7 +17,12 @@ class CRUDPrices(CRUDBase[Prices, Any, Any]):
         return db.query(Prices).filter(Prices.timestamp == timestamp).first()
 
     def get_latest(self, db: Session) -> Optional[Prices]:
-        return db.query(Prices).filter(Prices.source == "smard").order_by(desc(Prices.timestamp)).first()
+        return (
+            db.query(Prices)
+            .filter(Prices.source == "smard")
+            .order_by(desc(Prices.timestamp))
+            .first()
+        )
 
     def get_by_timestamp_range(
         self, db: Session, *, start: Any, end: Any

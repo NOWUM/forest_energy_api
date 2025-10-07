@@ -1,6 +1,6 @@
 import requests
 import json
-from typing import Dict, Any, Optional, Generator, List
+from typing import Dict, Any, Optional, Generator
 
 from aas_core3 import jsonization
 from aas_core3.types import (
@@ -21,6 +21,7 @@ needed_properties = [
     "co2Price",
     "gasPrice",
 ]
+
 
 class ServerEasyv3:
     @staticmethod
@@ -55,9 +56,12 @@ class ServerEasyv3:
             print(f"Deserialization failed: {ex}")
             return None
 
-def traverse_elements(element: SubmodelElement) -> Generator[Dict[str, Any], None, None]:
+
+def traverse_elements(
+    element: SubmodelElement,
+) -> Generator[Dict[str, Any], None, None]:
     if isinstance(element, SubmodelElementCollection):
-        if hasattr(element, 'value'):
+        if hasattr(element, "value"):
             for sub_element in element.value:
                 yield from traverse_elements(sub_element)
     elif isinstance(element, (Property, Range)):
@@ -65,10 +69,22 @@ def traverse_elements(element: SubmodelElement) -> Generator[Dict[str, Any], Non
             value = getattr(element, "value", None)
             min_value = getattr(element, "min", None)
             max_value = getattr(element, "max", None)
-            kind_value = getattr(getattr(element, "kind", None), "value", None) if hasattr(element, "kind") else None
+            kind_value = (
+                getattr(getattr(element, "kind", None), "value", None)
+                if hasattr(element, "kind")
+                else None
+            )
 
-            qualifier_values = [q.value for q in element.qualifiers] if hasattr(element, "qualifiers") and element.qualifiers else []
-            qualifier_types = [q.type for q in element.qualifiers] if hasattr(element, "qualifiers") and element.qualifiers else []
+            qualifier_values = (
+                [q.value for q in element.qualifiers]
+                if hasattr(element, "qualifiers") and element.qualifiers
+                else []
+            )
+            qualifier_types = (
+                [q.type for q in element.qualifiers]
+                if hasattr(element, "qualifiers") and element.qualifiers
+                else []
+            )
             if value is None and min_value is None and max_value is None:
                 return
             yield {
@@ -78,18 +94,24 @@ def traverse_elements(element: SubmodelElement) -> Generator[Dict[str, Any], Non
                 "qualifier_types": qualifier_types,
             }
 
+
 def get_data_from_aas() -> Dict[str, Any]:
     server = ServerEasyv3()
     submodel_id = "aHR0cHM6Ly9hZG1pbi1zaGVsbC5pby9pZHRhL0VuZXJneUZsZXhpYmlsaXR5RGF0YU1vZGVsLzEvMC9FbmVyZ3lGbGV4aWJpbGl0eURhdGFNb2RlbA"
     submodel = server.get_submodel(submodel_id)
 
     return_dict = {}
-    if submodel and hasattr(submodel, "submodel_elements") and submodel.submodel_elements:
+    if (
+        submodel
+        and hasattr(submodel, "submodel_elements")
+        and submodel.submodel_elements
+    ):
         print("Submodel elements found.")
         for element in submodel.submodel_elements:
             for elem_data in traverse_elements(element):
                 return_dict[elem_data["idShort"]] = elem_data["value"]
     return return_dict
+
 
 if __name__ == "__main__":
     print(get_data_from_aas())

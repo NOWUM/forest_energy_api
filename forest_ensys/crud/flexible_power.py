@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-from typing import List
 from sqlalchemy.orm import Session
 from forest_ensys.model import FlexiblePower
 from forest_ensys.schemas import FlexiblePowerCreate, FlexiblePowerUpdate
@@ -32,12 +31,18 @@ class CRUDFlexiblePower(
 
     def get_multi_flexible_power(self, db: Session, skip: int = 0, limit: int = 100):
         return db.query(FlexiblePower).offset(skip).limit(limit).all()
-    
+
     def delete(self, db: Session):
         return db.query(FlexiblePower).delete()
-    
-    def delete_by_optimization_case_name(self, db: Session, optimization_case_name: str):
-        return db.query(FlexiblePower).filter(FlexiblePower.optimization_case_name == optimization_case_name).delete()
+
+    def delete_by_optimization_case_name(
+        self, db: Session, optimization_case_name: str
+    ):
+        return (
+            db.query(FlexiblePower)
+            .filter(FlexiblePower.optimization_case_name == optimization_case_name)
+            .delete()
+        )
 
 
 flexible_power = CRUDFlexiblePower(FlexiblePower)

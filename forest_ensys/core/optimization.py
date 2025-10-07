@@ -175,7 +175,11 @@ def optimize_dryers(
 
     def full_load_hours_constraint_rule(m):
         total_demand = sum(effective_total_demand(m, t) for t in m.T)
-        return total_demand >= (0.8*time_interval_hours*num_periods) * m.max_total_demand * (1 / time_interval_hours) # 0.8 is the minimum full load hours which is 7000 for one year
+        return total_demand >= (
+            0.8 * time_interval_hours * num_periods
+        ) * m.max_total_demand * (
+            1 / time_interval_hours
+        )  # 0.8 is the minimum full load hours which is 7000 for one year
 
     model.full_load_hours_constraint = Constraint(rule=full_load_hours_constraint_rule)
 

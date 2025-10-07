@@ -29,7 +29,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         self, db: Session, *, skip: int = 0, limit: int = 100
     ) -> List[ModelType]:
         return db.query(self.model).offset(skip).limit(limit).all()
-        
+
     def get_multi_by_date_range(
         self, db: Session, start_date: datetime = None, end_date: datetime = None
     ) -> Optional[pd.DataFrame]:
@@ -46,11 +46,10 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             params={
                 "start_date": start_date,
                 "end_date": end_date,
-            }
+            },
         )
-        
-        return result if not result.empty else None
 
+        return result if not result.empty else None
 
     def create(
         self, db: Session, *, obj_in: Union[CreateSchemaType, ModelType, dict]
@@ -78,11 +77,13 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     def create_multi(
         self, db: Session, *, obj_in: List[Union[CreateSchemaType, ModelType, dict]]
     ) -> List[ModelType]:
-        
         def _bulk_set_attr(objs: list, attr: str, value: Any):
             for obj in objs:
                 setattr(obj, attr, value)
-        if isinstance(obj_in, list) and all(isinstance(obj, self.model) for obj in obj_in):
+
+        if isinstance(obj_in, list) and all(
+            isinstance(obj, self.model) for obj in obj_in
+        ):
             db_obj = obj_in
         elif isinstance(obj_in, list) and all(isinstance(obj, dict) for obj in obj_in):
             db_obj = [self.model(**data) for data in obj_in]
@@ -112,7 +113,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         db.commit()
         db.refresh(db_obj)
         return db_obj
-    
+
     def delete(self, db: Session) -> Optional[ModelType]:
         return db.query(self.model).delete()
 

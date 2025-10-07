@@ -9,24 +9,18 @@ from sqlalchemy.orm import Session
 from forest_ensys.crud.base import CRUDBase
 from forest_ensys.model import ProcessHeat
 from forest_ensys.schemas import ProcessHeatCreate, ProcessHeatUpdate
-from datetime import datetime
 
 
 class CRUDProcessHeat(CRUDBase[ProcessHeat, ProcessHeatCreate, ProcessHeatUpdate]):
     def get_from_start_date(
         self, db: Session, start_date: str
     ) -> Optional[ProcessHeat]:
-        return db.query(ProcessHeat).filter(
-            ProcessHeat.timestamp >= start_date
-        )
+        return db.query(ProcessHeat).filter(ProcessHeat.timestamp >= start_date)
 
-    def create(
-        self, db: Session, *, obj_in: ProcessHeatCreate
-    ) -> ProcessHeat:
+    def create(self, db: Session, *, obj_in: ProcessHeatCreate) -> ProcessHeat:
         obj_in_dict = obj_in.dict()
         db_obj = super().create(db, obj_in=obj_in_dict)
         return db_obj
-    
 
 
 process_heat = CRUDProcessHeat(ProcessHeat)

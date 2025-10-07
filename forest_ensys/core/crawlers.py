@@ -34,8 +34,12 @@ def get_data_per_commodity(
     try:
         response.raise_for_status()
     except requests.exceptions.HTTPError as e:
-        print(f"Could not get data for commodity: {commodity_id} {e} trying different start date")
-        return get_data_per_commodity(commodity_id, commodity_name, second_start_date_unix)
+        print(
+            f"Could not get data for commodity: {commodity_id} {e} trying different start date"
+        )
+        return get_data_per_commodity(
+            commodity_id, commodity_name, second_start_date_unix
+        )
     data = json.loads(response.text)
     timeseries = pd.DataFrame.from_dict(data["series"])
     if timeseries.empty:
