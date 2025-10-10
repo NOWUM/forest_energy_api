@@ -4,13 +4,13 @@
 
 from typing import List, Text
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-
+from fastapi.responses import JSONResponse
 from forest_ensys import crud, model, schemas
 from forest_ensys.api import deps
 from forest_ensys.api.endpoints import footprint_data, emissions_data
-
+from datetime import datetime, timedelta
 from forest_ensys.core import crawlers
 import pandas as pd
 from datetime import timedelta
@@ -121,10 +121,9 @@ def update_recent_grid_data(db: Session = Depends(deps.get_db)):
     """
     Retrieve the most recent grid data
     """
+    default_start_date = "09-28-2025 22:00:00"
+    stop = False
     while True:
-        grid_data = []
-        prices = []
-        start_date = "12-31-2023 22:00:00"
         try:
             latest_emissions_factors = get_latest_emissions_factors(db=db)
         except Exception:
@@ -144,6 +143,9 @@ def update_recent_grid_data(db: Session = Depends(deps.get_db)):
                 latest = pd.to_datetime(latest.timestamp)
                 latest_in_db = latest.tz_localize("UTC")
                 print(f"The latest date in the database is {latest}")
+                if latest > datetime.now() - timedelta(hours=6):
+                    stop = True
+                    break
                 if latest.weekday() != 6 or (latest.hour < 21 and latest.minute == 45):
                     last_sunday = latest - timedelta(days=(latest.weekday() + 1) % 7)
                     print(
@@ -166,7 +168,7 @@ def update_recent_grid_data(db: Session = Depends(deps.get_db)):
                     )
             except Exception as e:
                 print(f"Using the default start date for commodity {commodity_id, e}")
-                latest = pd.to_datetime(start_date)
+                latest = pd.to_datetime(default_start_date)
                 latest2 = latest.replace(hour=23, minute=0, second=0, microsecond=0)
 
             start_date_unix = int(latest.timestamp() * 1000)
@@ -208,8 +210,16 @@ def update_recent_grid_data(db: Session = Depends(deps.get_db)):
                 crud.grid.create_multi(
                     db, obj_in=data_for_commodity.to_dict(orient="records")
                 )
-        footprint_data.update_footprint_data(db)
-    raise HTTPException(status_code=200, detail="Grid data updated successfully")
+        if stop:
+            break
+    footprint_data.update_footprint_data(db)
+    return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "status": "Successful Response",
+                "message": "Grid data updated successfully.",
+            },
+        )
 
 
 def get_latest_emissions_factors(db: Session) -> dict:
