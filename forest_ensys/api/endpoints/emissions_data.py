@@ -108,7 +108,7 @@ def update_emissions_data(db: Session = Depends(deps.get_db)) -> Text:
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
             content={
-                "status": "Successful Response",
+                "status": "Conflict Error",
                 "message": "Emissions data already exists. Please delete first if you want to update.",
             },
         )
