@@ -68,7 +68,7 @@ def delete_grid_data(db: Session = Depends(deps.get_db)) -> Text:
     Delete all grid data
     """
     crud.grid.delete(db=db)
-    crud.prices.delete(db=db)
+    crud.prices.delete(db=db, source="smard")
     crud.footprint.delete(db=db)
     raise HTTPException(status_code=200, detail="Grid data table deleted successfully")
 
@@ -191,25 +191,23 @@ def update_recent_grid_data(db: Session = Depends(deps.get_db)):
                     data_for_commodity["timestamp"] > latest_in_db
                 ]
             if commodity_id == 4169:
-                for index, row in data_for_commodity.iterrows():
-                    db_obj = model.Prices(
-                        timestamp=row["timestamp"], price=row["mwh"], source="smard"
-                    )
-                    prices.append(db_obj)
+                data_for_commodity.rename(columns={"mwh": "price"}, inplace=True)
+                data_for_commodity["source"] = "smard"
+                data_for_commodity.drop(
+                    columns={"commodity_id", "commodity_name"}, inplace=True
+                )
+                crud.prices.create_multi(
+                    db, obj_in=data_for_commodity.to_dict(orient="records")
+                )
             else:
-                for index, row in data_for_commodity.iterrows():
-                    db_obj = model.Grid(
-                        timestamp=row["timestamp"],
-                        commodity_id=row["commodity_id"],
-                        commodity_name=row["commodity_name"],
-                        mwh=row["mwh"],
-                        co2=row["mwh"]
-                        * latest_emissions_factors[commodity_name]
-                        * 1000,
-                    )
-                    grid_data.append(db_obj)
-        crud.grid.create_multi(db=db, obj_in=grid_data)
-        crud.prices.create_multi(db=db, obj_in=prices)
+                data_for_commodity["co2"] = (
+                    data_for_commodity["mwh"]
+                    * latest_emissions_factors[commodity_name]
+                    * 1000
+                )
+                crud.grid.create_multi(
+                    db, obj_in=data_for_commodity.to_dict(orient="records")
+                )
         footprint_data.update_footprint_data(db)
     raise HTTPException(status_code=200, detail="Grid data updated successfully")
 
@@ -218,7 +216,7 @@ def get_latest_emissions_factors(db: Session) -> dict:
     emissions = {}
     if not crud.emissions.get_multi(db=db):
         print("Emissions data seems empty, trying to crawl")
-        emissions_data.update_emissions_data()
+        emissions_data.update_emissions_data(db=db)
 
     for commodity_id, commodity_name in keys.items():
         if commodity_id == 4169:

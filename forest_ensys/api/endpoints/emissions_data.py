@@ -4,9 +4,9 @@
 
 from typing import List, Text, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-
+from fastapi.responses import JSONResponse
 from forest_ensys import crud, model, schemas
 from forest_ensys.api import deps
 from forest_ensys.core import crawlers
@@ -92,27 +92,25 @@ def update_emissions_data(db: Session = Depends(deps.get_db)) -> Text:
             status_code=502,
             detail="Could not retrieve emissions data. Server probably offline",
         )
-    emission_objects = []
-    for index, row in timeseries_data.iterrows():
-        db_obj = model.Emissions(
-            timestamp=row["datetime"],
-            zone_key=row["zone_key"],
-            emission_factor_type=row["emission_factor_type"],
-            production_mode=row["production_mode"],
-            value=row["value"],
-            source=row["source"],
-        )
-        emission_objects.append(db_obj)
-
+    timeseries_data.rename(columns={"datetime": "timestamp"}, inplace=True)
     try:
-        crud.emissions.create_multi(db=db, obj_in=emission_objects)
-        raise HTTPException(
-            status_code=200, detail="Emissions data updated successfully"
+        crud.emissions.create_multi(
+            db, obj_in=timeseries_data.to_dict(orient="records")
+        )
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "status": "Successful Response",
+                "message": "Emissions data updated successfully",
+            },
         )
     except Exception:
-        raise HTTPException(
-            status_code=409,
-            detail="Emissions data already exists. Please delete first if you want to update.",
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "status": "Successful Response",
+                "message": "Emissions data already exists. Please delete first if you want to update.",
+            },
         )
 
 
