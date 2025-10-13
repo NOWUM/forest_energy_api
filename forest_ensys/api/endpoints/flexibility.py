@@ -99,9 +99,16 @@ def optimize_flexibility(
     footprint_data = crud.footprint.get_multi_by_date_range(
         db=db, start_date=start_date, end_date=end_date
     )
-    heat_demand = crud.data_parc.get_multi_by_date_range(
-        db=db, start_date=start_date, end_date=end_date
+    heat_demand = crud.simulation_input_data.get_multi_by_date_range_and_name(
+        db=db,
+        start_date=start_date,
+        end_date=end_date,
+        name="flexible_device_demand",
     )
+    if heat_demand is None:
+        raise HTTPException(
+            status_code=404, detail="No heat demand data found for the given date range"
+        )
     price_data = crud.prices.get_multi_by_date_range_and_source(
         db=db,
         start_date=start_date,
@@ -193,18 +200,20 @@ def optimize_flexibility(
         "time_to": end_date,
         "network_fee_type": "static",
         "network_fee": 0.0,
-        "total_energy_demand": round(total_energy_demand, 2),
-        "electricity_used": round(electricity_used, 2),
-        "gas_usage": round(gas_usage, 2),
-        "cost_savings": round(cost_savings, 2),
-        "emissions_savings": round(emissions_savings, 2),
-        "cost_gas_only": round(cost_gas_only, 2),
-        "cost_with_electric_heating": round(cost_with_electric_heating, 2),
-        "emissions_gas_only": round(emissions_gas_only, 2),
-        "emissions_with_electric_heating": round(emissions_with_electric_heating, 2),
+        "total_energy_demand": float(round(total_energy_demand, 2)),
+        "electricity_used": float(round(electricity_used, 2)),
+        "gas_usage": float(round(gas_usage, 2)),
+        "cost_savings": float(round(cost_savings, 2)),
+        "emissions_savings": float(round(emissions_savings, 2)),
+        "cost_gas_only": float(round(cost_gas_only, 2)),
+        "cost_with_electric_heating": float(round(cost_with_electric_heating, 2)),
+        "emissions_gas_only": float(round(emissions_gas_only, 2)),
+        "emissions_with_electric_heating": float(
+            round(emissions_with_electric_heating, 2)
+        ),
         "full_load_hours": 0,
         "full_load_hours_after_optimization": 0,
-        "mean_electricity_price_when_heating": (
+        "mean_electricity_price_when_heating": float(
             merged_data["electricity_price"][use_flexible_power].mean()
         ),
         "electric_heating_in_low_price_windows_ratio": 0,
@@ -240,11 +249,16 @@ def optimize_flexibility_aas_data(
     footprint_data = crud.footprint.get_multi_by_date_range(
         db=db, start_date=parameters["from"], end_date=parameters["until"]
     )
-    heat_demand = crud.data_parc.get_multi_by_date_range(
+    heat_demand = crud.simulation_input_data.get_multi_by_date_range_and_name(
         db=db,
         start_date=parameters["from"],
         end_date=parameters["until"],
+        name="flexible_device_demand",
     )
+    if heat_demand is None:
+        raise HTTPException(
+            status_code=404, detail="No heat demand data found for the given date range"
+        )
     price_data = crud.prices.get_multi_by_date_range_and_source(
         db=db,
         start_date=parameters["from"],
@@ -336,18 +350,20 @@ def optimize_flexibility_aas_data(
         "time_to": parameters["until"],
         "network_fee_type": "static",
         "network_fee": 0.0,
-        "total_energy_demand": round(total_energy_demand, 2),
-        "electricity_used": round(electricity_used, 2),
-        "gas_usage": round(gas_usage, 2),
-        "cost_savings": round(cost_savings, 2),
-        "emissions_savings": round(emissions_savings, 2),
-        "cost_gas_only": round(cost_gas_only, 2),
-        "cost_with_electric_heating": round(cost_with_electric_heating, 2),
-        "emissions_gas_only": round(emissions_gas_only, 2),
-        "emissions_with_electric_heating": round(emissions_with_electric_heating, 2),
+        "total_energy_demand": float(round(total_energy_demand, 2)),
+        "electricity_used": float(round(electricity_used, 2)),
+        "gas_usage": float(round(gas_usage, 2)),
+        "cost_savings": float(round(cost_savings, 2)),
+        "emissions_savings": float(round(emissions_savings, 2)),
+        "cost_gas_only": float(round(cost_gas_only, 2)),
+        "cost_with_electric_heating": float(round(cost_with_electric_heating, 2)),
+        "emissions_gas_only": float(round(emissions_gas_only, 2)),
+        "emissions_with_electric_heating": float(
+            round(emissions_with_electric_heating, 2)
+        ),
         "full_load_hours": 0,
         "full_load_hours_after_optimization": 0,
-        "mean_electricity_price_when_heating": (
+        "mean_electricity_price_when_heating": float(
             merged_data["electricity_price"][use_flexible_power].mean()
         ),
         "electric_heating_in_low_price_windows_ratio": 0,
@@ -706,132 +722,3 @@ def optimize_dryers(
         return crud.optimization_results.create(db=db, obj_in=optimization_results)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
-
-# @router.post("/optimize_flexible_power_size", response_model=schemas.OptimizationResult)
-# def optimize_flexible_power_size(
-#     db: Session = Depends(deps.get_db),
-#     current: model.User = Depends(deps.get_current_user),
-#     start_date: datetime = "2024-09-10",
-#     end_date: datetime = "2024-09-28",
-#     max_flexible_power: float = 100000,
-#     flexible_power_cost: float = 0.00001,
-#     gas_emissions_factor: float = 800,
-#     gas_price: float = 0.1,
-#     w_cost: float = 0.5,
-#     w_emissions: float = 0.5,
-# ) -> schemas.OptimizationResult:
-#     # Validate weights
-#     if not (0 <= w_cost <= 1) or not (0 <= w_emissions <= 1):
-#         raise HTTPException(status_code=400, detail="Weights must be between 0 and 1.")
-
-#     if abs(w_cost + w_emissions - 1) > 1e-6:
-#         raise HTTPException(
-#             status_code=400, detail="The sum of w_cost and w_emissions must equal 1."
-#         )
-
-#     # Retrieve data from database
-#     footprint_data = crud.footprint.get_multi_by_date_range(
-#         db=db, start_date=start_date, end_date=end_date
-#     )
-#     heat_demand = crud.data_parc.get_multi_by_date_range(
-#         db=db, user_id=current.id, start_date=start_date, end_date=end_date
-#     )
-#     price_data = crud.prices.get_multi_by_date_range(
-#         db=db, start_date=start_date, end_date=end_date
-#     )
-
-#     # Merge dataframes and check granularity
-#     merged_data = check_granularity_and_merge(footprint_data, heat_demand)
-#     merged_data = check_granularity_and_merge(merged_data, price_data)
-
-#     # Extract relevant data from the dataframes
-#     co2_emissions = merged_data["co2"].values.tolist()
-#     heat_demand_values = merged_data["value"].values.tolist()
-#     timestamps = merged_data["timestamp"].values
-
-#     el_price = merged_data["price"].tolist()
-
-#     # Create Pyomo model
-#     model = ConcreteModel()
-
-#     # Define sets (time steps)
-#     model.T = RangeSet(0, len(timestamps) - 1)
-
-#     # Parameters
-#     model.co2_emissions = Param(
-#         model.T, initialize={i: co2_emissions[i] for i in range(len(co2_emissions))}
-#     )
-#     model.heat_demand = Param(
-#         model.T,
-#         initialize={i: heat_demand_values[i] for i in range(len(heat_demand_values))},
-#     )
-#     model.el_price = Param(
-#         model.T, initialize={i: el_price[i] for i in range(len(el_price))}
-#     )
-
-#     # Decision variable: Single flexible power variable for the entire time period
-#     model.flexible_power = Var(within=NonNegativeReals, bounds=(0, max_flexible_power))
-#     model.gas_power = Var(model.T, within=NonNegativeReals)
-
-#     # Objective function with normalization
-#     def objective_rule(model):
-#         max_cost = max(el_price) * max_flexible_power * len(
-#             heat_demand_values
-#         ) + gas_price * sum(heat_demand_values)
-#         max_emission = gas_emissions_factor * sum(heat_demand_values)
-
-#         normalized_cost = sum(
-#             (model.el_price[t] * model.flexible_power + gas_price * model.gas_power[t])
-#             / max_cost
-#             for t in model.T
-#         )
-
-#         normalized_emission = sum(
-#             (
-#                 gas_emissions_factor * model.gas_power[t]
-#                 + model.co2_emissions[t] * model.flexible_power
-#             )
-#             / max_emission
-#             for t in model.T
-#         )
-
-#         flexible_cost = flexible_power_cost * model.flexible_power
-
-#         return (
-#             w_cost * normalized_cost + w_emissions * normalized_emission + flexible_cost
-#         )
-
-#     model.objective = Objective(rule=objective_rule, sense=minimize)
-
-#     # Constraints: Ensure heat demand is met at each time step
-#     def heat_demand_rule(model, t):
-#         return model.gas_power[t] + model.flexible_power >= model.heat_demand[t] * 0.99
-
-#     model.heat_demand_constraint = Constraint(model.T, rule=heat_demand_rule)
-
-#     # Solve the optimization problem
-#     solver = SolverFactory("glpk")
-#     results = solver.solve(model)
-
-#     # Check solver status
-#     if results.solver.termination_condition != TerminationCondition.optimal:
-#         raise HTTPException(
-#             status_code=500,
-#             detail=f"Optimization failed with termination condition {results.solver.termination_condition}",
-#         )
-
-#     # Extract the optimal flexible power value
-#     try:
-#         optimal_flexible_power = value(model.flexible_power)
-
-#         return schemas.OptimizationResult(
-#             optimal_flexible_power=optimal_flexible_power,
-#             detail="Optimization completed successfully.",
-#         )
-
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=500,
-#             detail=f"Error extracting results from optimization: {str(e)}",
-#         )
