@@ -127,14 +127,14 @@ def update_recent_grid_data(
     Retrieve the most recent grid data
     """
     stop = False
+    try:
+        latest_emissions_factors = get_latest_emissions_factors(db=db)
+    except Exception:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not retrieve emissions data. Server probably offline",
+        )
     while True:
-        try:
-            latest_emissions_factors = get_latest_emissions_factors(db=db)
-        except Exception:
-            raise HTTPException(
-                status_code=502,
-                detail="Could not retrieve emissions data. Server probably offline",
-            )
         for commodity_id, commodity_name in keys.items():
             if commodity_id != 4169:
                 latest = crud.grid.get_latest_for_commodity(
