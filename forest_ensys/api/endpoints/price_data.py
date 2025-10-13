@@ -48,7 +48,7 @@ def get_price_data_by_source(
 
 
 @router.post(
-    "/upload-price-data",
+    "/",
     responses={
         200: {
             "content": {
@@ -121,7 +121,7 @@ async def upload_price_data(
 
 
 @router.delete(
-    "/prices",
+    "/",
     responses={
         200: {"description": "Data deleted successfully"},
         404: {"description": "Error deleting prices"},

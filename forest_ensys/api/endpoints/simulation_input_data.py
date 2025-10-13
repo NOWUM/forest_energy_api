@@ -17,7 +17,7 @@ router = APIRouter()
 
 # we want a method that receives a excel file and uploads it to the database
 @router.post(
-    "/upload-heat-demand",
+    "/",
     responses={
         200: {
             "content": {
@@ -108,7 +108,7 @@ async def upload_simulation_input_data(
 
 
 @router.delete(
-    "/simulation_input_data",
+    "/",
     responses={
         200: {"description": "Data deleted successfully"},
         400: {"description": "Bad request"},
