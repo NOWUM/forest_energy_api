@@ -4,16 +4,15 @@
 
 from typing import List, Text
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
-from forest_ensys import crud, model, schemas
+from forest_ensys import crud, schemas
 from forest_ensys.api import deps
 from forest_ensys.api.endpoints import footprint_data, emissions_data
 from datetime import datetime, timedelta
 from forest_ensys.core import crawlers
 import pandas as pd
-from datetime import timedelta
 
 router = APIRouter()
 
@@ -86,7 +85,7 @@ def get_all_grid_data(
     return grid_data
 
 
-@router.get(
+@router.post(
     "/update",
     responses={
         200: {
@@ -117,11 +116,16 @@ def get_all_grid_data(
         },
     },
 )
-def update_recent_grid_data(db: Session = Depends(deps.get_db)):
+def update_recent_grid_data(
+    db: Session = Depends(deps.get_db),
+    default_start_date: str = Query(
+        "12-31-2023 22:00:00",
+        description="If the database is empty, this is the start date for the data which will be fetched.",
+    ),
+):
     """
     Retrieve the most recent grid data
     """
-    default_start_date = "09-28-2025 22:00:00"
     stop = False
     while True:
         try:
@@ -214,12 +218,12 @@ def update_recent_grid_data(db: Session = Depends(deps.get_db)):
             break
     footprint_data.update_footprint_data(db)
     return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content={
-                "status": "Successful Response",
-                "message": "Grid data updated successfully.",
-            },
-        )
+        status_code=status.HTTP_200_OK,
+        content={
+            "status": "Successful Response",
+            "message": "Grid data updated successfully.",
+        },
+    )
 
 
 def get_latest_emissions_factors(db: Session) -> dict:
