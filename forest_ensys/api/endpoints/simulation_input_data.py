@@ -4,18 +4,89 @@
 
 
 from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from typing import List
 import pandas as pd
 from sqlalchemy.orm import Session
-
+from datetime import datetime
 from forest_ensys import crud
 from forest_ensys.api import deps
 from forest_ensys.core.timeseries_helpers import ensure_consistent_granularity
+from io import StringIO
 
 router = APIRouter()
 
 
-# we want a method that receives a excel file and uploads it to the database
+@router.get(
+    "/names",
+    response_model=List[str],
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example": ["flexible_device_demand", "total_electricity_demand"]
+                }
+            }
+        },
+        500: {"description": "Internal server error"},
+    },
+)
+def list_simulation_input_names(
+    db: Session = Depends(deps.get_db),
+):
+    """
+    Return distinct dataset names present in the table.
+    """
+    try:
+        names = crud.simulation_input_data.get_distinct_names(db)
+        return names
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch names: {str(e)}",
+        )
+
+
+@router.get(
+    "/dataset",
+    responses={200: {"description": "CSV download"}, 404: {"description": "Not found"}},
+)
+def download_simulation_input_csv(
+    start_date: datetime = Query(
+        "2024-01-01", description="Start date for the optimization period."
+    ),
+    end_date: datetime = Query(
+        "2024-12-31", description="End date for the optimization period."
+    ),
+    name: str = Query(..., enum=["flexible_device_demand", "total_electricity_demand"]),
+    db: Session = Depends(deps.get_db),
+):
+    try:
+        data_df = crud.simulation_input_data.get_multi_by_date_range_and_name(
+            db=db, start_date=start_date, end_date=end_date, name=name
+        )
+        if data_df is None:
+            raise HTTPException(
+                status_code=404, detail=f"No dataset found for name='{name}'"
+            )
+        buf = StringIO()
+        data_df.to_csv(buf, index=False)
+        buf.seek(0)
+        return StreamingResponse(
+            buf,
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename={name}.csv",
+                "Access-Control-Expose-Headers": "Content-Disposition",
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )
+
 @router.post(
     "/",
     responses={

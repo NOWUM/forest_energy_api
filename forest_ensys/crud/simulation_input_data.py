@@ -43,6 +43,10 @@ class CRUDSimulationInputData(CRUDBase[SimulationInputData, Any, Any]):
         )
 
         return result if not result.empty else None
+    
+    def get_distinct_names(self, db: Session) -> list[str]:
+        rows = db.query(self.model.name).distinct().order_by(self.model.name).all()
+        return [r[0] for r in rows]
 
 
 simulation_input_data = CRUDSimulationInputData(SimulationInputData)
