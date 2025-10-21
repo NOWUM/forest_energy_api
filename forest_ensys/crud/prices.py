@@ -73,5 +73,9 @@ class CRUDPrices(CRUDBase[Prices, Any, Any]):
     def delete(self, db: Session, source: str) -> Optional[Prices]:
         return db.query(Prices).filter(Prices.source == source).delete()
 
+    def get_distinct_names(self, db: Session) -> list[str]:
+        rows = db.query(self.model.source).distinct().order_by(self.model.source).all()
+        return [r[0] for r in rows]
+
 
 prices = CRUDPrices(Prices)

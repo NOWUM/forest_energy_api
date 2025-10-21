@@ -5,12 +5,14 @@
 from typing import List
 
 from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from forest_ensys import crud, schemas
 from forest_ensys.api import deps
 from forest_ensys.core.timeseries_helpers import ensure_consistent_granularity
 import pandas as pd
+from datetime import datetime
+from io import StringIO
 
 router = APIRouter()
 
@@ -28,23 +30,69 @@ def get_all_price_data(
     return price_data
 
 
-@router.get("/{source}", response_model=List[schemas.Prices])
-def get_price_data_by_source(
-    source: str,
+@router.get(
+    "/names",
+    response_model=List[str],
+    responses={
+        200: {"content": {"application/json": {"example": ["smard", "greenPFC"]}}},
+        500: {"description": "Internal server error"},
+    },
+)
+def price_sources(
     db: Session = Depends(deps.get_db),
-    skip: int = 0,
-    limit: int = 100,
-) -> List[schemas.Prices]:
+):
     """
-    Retrieve price data by source
+    Return distinct dataset names present in the table.
     """
     try:
-        price_data = crud.prices.get_by_source(
-            db=db, source=source, skip=skip, limit=limit
-        )
-        return price_data
+        names = crud.prices.get_distinct_names(db)
+        return names
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch names: {str(e)}",
+        )
+
+
+@router.get(
+    "/dataset",
+    responses={200: {"description": "CSV download"}, 404: {"description": "Not found"}},
+)
+def download_price_csv(
+    start_date: datetime = Query(
+        "2024-01-01", description="Start date for the optimization period."
+    ),
+    end_date: datetime = Query(
+        "2024-12-31", description="End date for the optimization period."
+    ),
+    source: str = Query("smard", description="Source of the dataset to download."),
+    db: Session = Depends(deps.get_db),
+):
+    try:
+        data_df = crud.prices.get_multi_by_date_range_and_source(
+            db=db, start_date=start_date, end_date=end_date, source=source
+        )
+        if data_df is None:
+            raise HTTPException(
+                status_code=404, detail=f"No dataset found for source='{source}'"
+            )
+        buf = StringIO()
+        data_df.to_csv(buf, index=False)
+        buf.seek(0)
+        return StreamingResponse(
+            buf,
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename={source}.csv",
+                "Access-Control-Expose-Headers": "Content-Disposition",
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )
 
 
 @router.post(
