@@ -3,7 +3,16 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status, Query
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    UploadFile,
+    HTTPException,
+    status,
+    Query,
+    Form,
+)
 from fastapi.responses import JSONResponse, StreamingResponse
 from typing import List
 import pandas as pd
@@ -87,6 +96,7 @@ def download_simulation_input_csv(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
 
+
 @router.post(
     "/",
     responses={
@@ -109,22 +119,33 @@ def download_simulation_input_csv(
 async def upload_simulation_input_data(
     file: UploadFile = File(...),
     db: Session = Depends(deps.get_db),
-    name: str = Query(
+    name: str = Form(
         "flexibility_timeseries",
         enum=["flexible_device_demand", "total_electricity_demand"],
         description="The name of the simulation input data. 'flexible_device_demand' is the energy demand of the flexible device. 'total_electricity_demand' is the total electricity demand of the building.",
     ),
-    delimiter: str = ";",
-    skiprows: int = 3,
-    DateTimeColumn: str = "DateTime",
-    ValueColumn: str = "Value",
-    unit: str = Query(
+    delimiter: str = Form(";", description="The delimiter used in the CSV file"),
+    skiprows: int = Form(
+        3, description="The number of rows to skip until the actual data begins."
+    ),
+    DateTimeColumn: str = Form(
+        "DateTime", description="The name of the column containing the date and time."
+    ),
+    ValueColumn: str = Form(
+        "Value", description="The name of the column containing the value."
+    ),
+    unit: str = Form(
         "m³/h",
         enum=["m³/h", "kWh", "kW"],
         description="The unit of the heat demand. Can be 'm³/h', 'kWh' or 'kW'",
     ),
-    heating_value: float = 10.0,
-    conversion_factor: float = 0.8,
+    heating_value: float = Form(
+        10.0, description="The heating value of the gas in kWh/m³"
+    ),
+    conversion_factor: float = Form(
+        0.8,
+        description="Corrects from operating to standard conditions; shown on your bill or from the network operator.",
+    ),
 ):
     if unit.lower() not in ["m³/h", "kw", "kwh", "m3/h"]:
         raise HTTPException(

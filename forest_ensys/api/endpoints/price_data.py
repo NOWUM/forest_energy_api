@@ -4,7 +4,16 @@
 
 from typing import List
 
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status, Query
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    UploadFile,
+    HTTPException,
+    status,
+    Query,
+    Form,
+)
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from forest_ensys import crud, schemas
@@ -116,11 +125,19 @@ def download_price_csv(
 async def upload_price_data(
     file: UploadFile = File(...),
     db: Session = Depends(deps.get_db),
-    delimiter: str = ";",
-    skiprows: int = 3,
-    DateTimeColumn: str = "timestamp",
-    ValueColumn: str = "price",
-    source: str = "greenPFC",
+    delimiter: str = Form(";", description="The delimiter used in the CSV file"),
+    skiprows: int = Form(
+        3, description="The number of rows to skip until the actual data begins."
+    ),
+    DateTimeColumn: str = Form(
+        "timestamp", description="The name of the column containing the date and time."
+    ),
+    ValueColumn: str = Form(
+        "price", description="The name of the column containing the price."
+    ),
+    source: str = Form(
+        "greenPFC", description="Name describing the source of the price data."
+    ),
 ):
     if (
         not file
