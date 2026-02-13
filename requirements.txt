@@ -17,4 +17,5 @@ gurobipy
 openpyxl
 aas-core3.0
 highspy
+apscheduler
 https://github.com/calliope-project/calliope/archive/refs/tags/v0.7.0.dev7.zip
