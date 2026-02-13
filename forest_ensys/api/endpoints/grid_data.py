@@ -13,7 +13,13 @@ from forest_ensys.api.endpoints import footprint_data, emissions_data
 from datetime import datetime, timedelta
 from forest_ensys.core import crawlers
 import pandas as pd
+import logging
+from typing import Optional, Dict, Any
 
+from sqlalchemy.exc import SQLAlchemyError
+
+# Setup logging
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 keys = {
@@ -48,6 +54,7 @@ grid_to_factors = {
     "Pumpspeicher": "hydro",
 }
 
+DAY_AHEAD_COMMODITY_ID = 4169
 
 @router.delete(
     "/",
@@ -83,6 +90,237 @@ def get_all_grid_data(
     """
     grid_data = crud.grid.get_multi(db=db, skip=skip, limit=limit)
     return grid_data
+
+def calculate_start_timestamps(
+    latest: Optional[datetime], default_start_date: str
+) -> tuple[datetime, datetime]:
+    """
+    Calculate start timestamps for SMARD API.
+
+    SMARD API quirk: Data is organized in weekly chunks starting Sunday 22:00 UTC.
+    We need to align our start date to the most recent Sunday 22:00 to avoid gaps.
+    """
+    if latest is None:
+        latest = pd.to_datetime(default_start_date)
+        latest = latest.replace(tzinfo=None)  # Ensure naive for processing
+
+    # SMARD data starts Sunday 22:00 UTC (or 21:45 in some cases)
+    # If latest is not Sunday after 22:00, backtrack to last Sunday 22:00
+    if latest.weekday() != 6 or (
+        latest.hour < 22 or (latest.hour == 21 and latest.minute < 45)
+    ):
+        days_since_sunday = (latest.weekday() + 1) % 7
+        last_sunday = latest - timedelta(days=days_since_sunday)
+        last_sunday = last_sunday.replace(hour=22, minute=0, second=0, microsecond=0)
+        logger.info(
+            f"Adjusting start date from {latest} to last Sunday 22:00: {last_sunday}"
+        )
+        latest = last_sunday
+
+    # Handle 21:45 vs 22:45 cases (SMARD API inconsistency)
+    if latest.hour == 21 and latest.minute == 45:
+        timestamp1 = latest.replace(hour=22, minute=0, second=0, microsecond=0)
+        timestamp2 = latest.replace(hour=23, minute=0, second=0, microsecond=0)
+    else:
+        timestamp1 = latest.replace(hour=23, minute=0, second=0, microsecond=0)
+        timestamp2 = latest.replace(hour=22, minute=0, second=0, microsecond=0)
+
+    return timestamp1, timestamp2
+
+
+def is_commodity_up_to_date(
+    commodity_id: int, latest_timestamp: datetime, staleness_hours: int = 6
+) -> bool:
+    """
+    Check if commodity data is up-to-date.
+
+    Day-ahead prices (4169): Available 24h in advance, check if we have tomorrow's data
+    Real-time data: Check if within last N hours
+    """
+    now = datetime.now(tz=latest_timestamp.tzinfo)
+
+    if commodity_id == DAY_AHEAD_COMMODITY_ID:
+        # For day-ahead: Check if we have data for tomorrow
+        # Day-ahead published around 13:00 CET daily
+        if latest_timestamp.date() > now.date():
+            logger.info(
+                f"Commodity {commodity_id} up-to-date (has future data: {latest_timestamp.date()})"
+            )
+            return True
+        # If before 14:00 CET and we have today's data, consider it current
+        if now.hour < 14 and latest_timestamp.date() >= now.date():
+            logger.info(
+                f"Commodity {commodity_id} up-to-date (before 14:00, has today's data)"
+            )
+            return True
+    else:
+        # For real-time data: Check if within staleness window
+        if latest_timestamp > now - timedelta(hours=staleness_hours):
+            logger.info(
+                f"Commodity {commodity_id} up-to-date (within {staleness_hours}h)"
+            )
+            return True
+
+    return False
+
+
+def update_grid_data_logic(
+    db: Session, keys: Dict[int, str], default_start_date: str = "12-31-2023 22:00:00"
+) -> Dict[str, Any]:
+    """
+    Core logic for updating grid data (separated from endpoint).
+    This can be called from an endpoint, background task, or scheduled job.
+    """
+    try:
+        latest_emissions_factors = get_latest_emissions_factors(db=db)
+    except SQLAlchemyError as e:
+        logger.error(f"Database error retrieving emissions factors: {e}")
+        raise HTTPException(
+            status_code=502, detail="Could not retrieve emissions data from database"
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error retrieving emissions factors: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail="Could not retrieve emissions data. Server probably offline",
+        )
+
+    commodities_updated = {}
+    max_iterations = 10  # Safety limit instead of infinite loop
+    iteration = 0
+
+    while iteration < max_iterations:
+        iteration += 1
+        logger.info(f"Update iteration {iteration}/{max_iterations}")
+
+        for commodity_id, commodity_name in keys.items():
+            # Get latest timestamp for this commodity
+            try:
+                if commodity_id != DAY_AHEAD_COMMODITY_ID:
+                    latest = crud.grid.get_latest_for_commodity(
+                        db=db, commodity_id=commodity_id
+                    )
+                else:
+                    latest = crud.prices.get_latest(db=db)
+            except SQLAlchemyError as e:
+                logger.error(f"Database error for commodity {commodity_id}: {e}")
+                continue
+
+            latest_in_db = None
+            latest_dt = None
+
+            try:
+                if latest:
+                    latest_dt = pd.to_datetime(latest.timestamp)
+                    # Ensure timezone-aware
+                    if latest_dt.tzinfo is None:
+                        latest_in_db = latest_dt.tz_localize("UTC")
+                    else:
+                        latest_in_db = latest_dt
+
+                    logger.info(
+                        f"Latest in DB for commodity {commodity_id}: {latest_in_db}"
+                    )
+
+                    # Check if this commodity is up-to-date
+                    if is_commodity_up_to_date(commodity_id, latest_in_db):
+                        commodities_updated[commodity_id] = True
+                        continue  # Skip to next commodity
+
+                # Calculate start timestamps (handles SMARD quirks)
+                timestamp1, timestamp2 = calculate_start_timestamps(
+                    latest_dt, default_start_date
+                )
+
+            except (ValueError, AttributeError) as e:
+                logger.warning(
+                    f"Using default start date for commodity {commodity_id}: {e}"
+                )
+                timestamp1, timestamp2 = calculate_start_timestamps(
+                    None, default_start_date
+                )
+
+            # Convert to Unix milliseconds
+            start_date_unix = int(timestamp1.timestamp() * 1000)
+            second_start_date_unix = int(timestamp2.timestamp() * 1000)
+
+            # Fetch data from SMARD API
+            data_for_commodity = crawlers.get_data_per_commodity(
+                commodity_id, commodity_name, start_date_unix, second_start_date_unix
+            )
+
+            if data_for_commodity.empty:
+                logger.warning(f"No new data available for commodity {commodity_id}")
+                # Mark as updated to avoid infinite retries
+                commodities_updated[commodity_id] = True
+                continue
+
+            # Remove duplicate timestamps
+            data_for_commodity = data_for_commodity[
+                ~data_for_commodity.index.duplicated(keep="first")
+            ]
+
+            # Filter out already-stored data
+            if latest_in_db is not None:
+                data_for_commodity = data_for_commodity[
+                    data_for_commodity["timestamp"] > latest_in_db
+                ]
+
+            if data_for_commodity.empty:
+                logger.info(f"All data already in DB for commodity {commodity_id}")
+                commodities_updated[commodity_id] = True
+                continue
+
+            # Store in database
+            try:
+                if commodity_id == DAY_AHEAD_COMMODITY_ID:
+                    data_for_commodity = data_for_commodity.rename(
+                        columns={"mwh": "price"}
+                    )
+                    data_for_commodity["source"] = "smard"
+                    data_for_commodity = data_for_commodity.drop(
+                        columns=["commodity_id", "commodity_name"], errors="ignore"
+                    )
+                    crud.prices.create_multi(
+                        db, obj_in=data_for_commodity.to_dict(orient="records")
+                    )
+                else:
+                    data_for_commodity["co2"] = (
+                        data_for_commodity["mwh"]
+                        * latest_emissions_factors.get(commodity_name, 0)
+                        * 1000
+                    )
+                    crud.grid.create_multi(
+                        db, obj_in=data_for_commodity.to_dict(orient="records")
+                    )
+
+                logger.info(
+                    f"Stored {len(data_for_commodity)} records for commodity {commodity_id}"
+                )
+            except SQLAlchemyError as e:
+                logger.error(f"Database error storing commodity {commodity_id}: {e}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to store data for commodity {commodity_id}",
+                )
+
+        # Check if all commodities are updated
+        if len(commodities_updated) == len(keys):
+            logger.info("All commodities up-to-date")
+            break
+
+    # Update footprint data
+    try:
+        footprint_data.update_footprint_data(db)
+    except Exception as e:
+        logger.error(f"Error updating footprint data: {e}")
+        # Don't fail the whole operation for this
+
+    return {
+        "commodities_updated": len(commodities_updated),
+        "total_commodities": len(keys),
+        "iterations": iteration,
+    }
 
 
 @router.post(
@@ -120,110 +358,31 @@ def update_recent_grid_data(
     db: Session = Depends(deps.get_db),
     default_start_date: str = Query(
         "12-31-2023 22:00:00",
-        description="If the database is empty, this is the start date for the data which will be fetched.",
+        description="If the database is empty, this is the start date for data fetching.",
     ),
 ):
     """
-    Retrieve the most recent grid data
-    """
-    stop = False
-    try:
-        latest_emissions_factors = get_latest_emissions_factors(db=db)
-    except Exception:
-        raise HTTPException(
-            status_code=502,
-            detail="Could not retrieve emissions data. Server probably offline",
-        )
-    while True:
-        for commodity_id, commodity_name in keys.items():
-            if commodity_id != 4169:
-                latest = crud.grid.get_latest_for_commodity(
-                    db=db, commodity_id=commodity_id
-                )
-            else:
-                latest = crud.prices.get_latest(db=db)
-            latest_in_db = None
-            try:
-                latest = pd.to_datetime(latest.timestamp)
-                latest_in_db = latest.tz_localize("UTC")
-                print(f"The latest date in the database is {latest}")
-                if latest > datetime.now() - timedelta(hours=6):
-                    stop = True
-                    break
-                if latest.weekday() != 6 or (latest.hour < 21 and latest.minute == 45):
-                    last_sunday = latest - timedelta(days=(latest.weekday() + 1) % 7)
-                    print(
-                        f"the latest date in the database is not a sunday after 22:00, taking last week sunday 22:00 as start date to fill the missing data: {latest} -> {last_sunday}"
-                    )
-                    latest = last_sunday
-                if latest.hour == 21 and latest.minute == 45:
-                    print(
-                        "the latest date in the database is a sunday 21:45, taking this sunday 22:00 as start date"
-                    )
-                    latest = latest.replace(hour=22, minute=0, second=0, microsecond=0)
-                    latest2 = latest.replace(hour=23, minute=0, second=0, microsecond=0)
-                else:
-                    print(
-                        "the latest date in the database is a sunday 22:45, taking this sunday 23:00 as start date"
-                    )
-                    latest = latest.replace(hour=23, minute=0, second=0, microsecond=0)
-                    latest2 = latest.replace(
-                        hour=22, minute=00, second=0, microsecond=0
-                    )
-            except Exception as e:
-                print(f"Using the default start date for commodity {commodity_id, e}")
-                latest = pd.to_datetime(default_start_date)
-                latest2 = latest.replace(hour=23, minute=0, second=0, microsecond=0)
+    Trigger grid data update.
 
-            start_date_unix = int(latest.timestamp() * 1000)
-            second_start_date_unix = int(latest2.timestamp() * 1000)
-            data_for_commodity = crawlers.get_data_per_commodity(
-                commodity_id, commodity_name, start_date_unix, second_start_date_unix
-            )
-            if data_for_commodity.empty:
-                raise HTTPException(
-                    status_code=404,
-                    detail="Could not get data for commodity {commodity_id}",
-                )
-            # if data_for_commodity is None:
-            #    return HTTPException(status_code=404, detail="Could not reach website for crawling data")
-            # delete timezone duplicate
-            # https://stackoverflow.com/a/34297689
-            data_for_commodity = data_for_commodity[
-                ~data_for_commodity.index.duplicated(keep="first")
-            ]
-            if latest_in_db is not None:
-                data_for_commodity = data_for_commodity[
-                    data_for_commodity["timestamp"] > latest_in_db
-                ]
-            if commodity_id == 4169:
-                data_for_commodity.rename(columns={"mwh": "price"}, inplace=True)
-                data_for_commodity["source"] = "smard"
-                data_for_commodity.drop(
-                    columns={"commodity_id", "commodity_name"}, inplace=True
-                )
-                crud.prices.create_multi(
-                    db, obj_in=data_for_commodity.to_dict(orient="records")
-                )
-            else:
-                data_for_commodity["co2"] = (
-                    data_for_commodity["mwh"]
-                    * latest_emissions_factors[commodity_name]
-                    * 1000
-                )
-                crud.grid.create_multi(
-                    db, obj_in=data_for_commodity.to_dict(orient="records")
-                )
-        if stop:
-            break
-    footprint_data.update_footprint_data(db)
-    return JSONResponse(
-        status_code=status.HTTP_200_OK,
-        content={
-            "status": "Successful Response",
-            "message": "Grid data updated successfully.",
-        },
-    )
+    """
+    try:
+        result = update_grid_data_logic(db, keys, default_start_date)
+
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "status": "success",
+                "message": "Grid data updated successfully",
+                **result,
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Unexpected error during grid data update")
+        raise HTTPException(
+            status_code=500, detail=f"Grid data update failed: {str(e)}"
+        )
 
 
 def get_latest_emissions_factors(db: Session) -> dict:
