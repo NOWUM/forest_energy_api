@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
     scheduler = BackgroundScheduler()
     scheduler.add_job(
         _run_grid_update,
-        trigger=CronTrigger(minute=60),
+        trigger=CronTrigger(minute=5),
         id="grid_data_update",
         max_instances=1,
         coalesce=True,
