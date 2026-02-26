@@ -8,8 +8,8 @@ import numpy as np
 
 
 def ensure_consistent_granularity(
-    df, method="mean", ignore_timezone=False
-) -> (pd.DataFrame, float):
+    df, method="mean"
+) -> tuple[pd.DataFrame, float]:
     """
     Ensures that the DataFrame has a consistent granularity.
 
@@ -24,15 +24,7 @@ def ensure_consistent_granularity(
     -------
     a float representing the granularity of the dataframe
     """
-    if ignore_timezone:
-        try:
-            df["timestamp"] = (
-                df["timestamp"]
-                .str.replace(r"([+-]\d{2}:?\d{0,2})$", "", regex=True)
-                .str.strip()
-            )
-        except AttributeError:
-            pass
+
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
     granularity = df["timestamp"].diff().min()
     df_resampled = (

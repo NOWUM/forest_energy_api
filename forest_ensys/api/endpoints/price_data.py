@@ -176,7 +176,7 @@ async def upload_price_data(
             status.HTTP_500_INTERNAL_SERVER_ERROR, f"Error reading CSV file: {str(e)}"
         )
     df.rename(columns={DateTimeColumn: "timestamp", ValueColumn: "price"}, inplace=True)
-    df, granularity = ensure_consistent_granularity(df, ignore_timezone=True)  # TODO
+    df, granularity = ensure_consistent_granularity(df)  # TODO
     df["source"] = source
     crud.prices.create_multi(db, obj_in=df.to_dict(orient="records"))
     return JSONResponse(
