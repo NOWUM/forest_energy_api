@@ -4,11 +4,11 @@ datasources:
     type: postgres
     url: IP:PORT
     user: SET THIS
-    database: forest
     basicAuth: false
     isDefault: true
     secureJsonData:
       password: SET THIS
     jsonData:
+      database: forest
       sslmode: disable
     editable: true
