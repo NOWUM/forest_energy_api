@@ -122,6 +122,7 @@ def calculate_dynamic_network_fee(
     relative_network_fee_reduction,
     relative_network_fee_surcharge,
     window_size,
+    use_reference_day: bool = True,
 ):
     merged_data = merged_data.copy()
     merged_data["timestamp"] = pd.to_datetime(merged_data["timestamp"])
@@ -143,7 +144,10 @@ def calculate_dynamic_network_fee(
     merged_data["in_low_window"] = False
     merged_data["in_high_window"] = False
     for date in merged_data["date"].unique():
-        ref_date = get_reference_day(pd.Timestamp(date))
+        if use_reference_day:
+            ref_date = get_reference_day(pd.Timestamp(date))
+        else:
+            ref_date = date
         if ref_date not in peak_info:
             continue
         min_peaks = peak_info[ref_date]["min_peaks"]

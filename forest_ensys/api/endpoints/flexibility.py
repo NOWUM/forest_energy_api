@@ -429,7 +429,7 @@ def optimize_dryers(
     ),
     network_fee: str = Query(
         "static",
-        enum=["static", "dynamic"],
+        enum=["static", "dynamic", "predictive"],
         description="Method for calculating network fees. Static adds a fixed value to the market electricity price, while dynamic calculates the network fee based on BK4-22-089",
     ),
     network_fee_value: float = Query(
@@ -616,6 +616,12 @@ def optimize_dryers(
             relative_network_fee_reduction,
             relative_network_fee_surcharge,
             window_size,
+        )
+    elif network_fee == "predictive":
+        merged_data = calculate_dynamic_network_fee(
+            merged_data, network_fee_value, relative_network_fee_reduction,
+            relative_network_fee_surcharge, window_size,
+            use_reference_day=False   # day-ahead: use today's own peaks
         )
     else:
         raise HTTPException(
