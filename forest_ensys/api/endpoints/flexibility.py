@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-from typing import Text
+from typing import Text, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from forest_ensys import crud, schemas
@@ -455,7 +455,13 @@ def optimize_dryers(
     force_full_load_hours: int = Query(
         7000,
         description="The full load hours that the optimizer should not fall short of.",
-    )
+    ),
+    time_window_start_hour: Optional[int] = Query(
+        None, ge=0, le=23, description="Earliest hour (0-23). Omit for no restriction."
+    ),
+    time_window_end_hour: Optional[int] = Query(
+        None, ge=0, le=23, description="Latest hour (0-23). Omit for no restriction."
+    ),
 ) -> schemas.OptimizationResult:
     """
     Optimizes the use of electric heating using Pyomo.
@@ -620,12 +626,19 @@ def optimize_dryers(
             relative_network_fee_reduction,
             relative_network_fee_surcharge,
             window_size,
+            time_window_start_hour,
+            time_window_end_hour
         )
     elif network_fee == "predictive":
         merged_data = calculate_dynamic_network_fee(
-            merged_data, network_fee_value, relative_network_fee_reduction,
-            relative_network_fee_surcharge, window_size,
-            use_reference_day=False   # day-ahead: use today's own peaks
+            merged_data,
+            network_fee_value,
+            relative_network_fee_reduction,
+            relative_network_fee_surcharge,
+            window_size,
+            time_window_start_hour,
+            time_window_end_hour,
+            use_reference_day=False,  # day-ahead: use today's own peaks
         )
     else:
         raise HTTPException(
@@ -664,7 +677,7 @@ def optimize_dryers(
         ramp_down_rate=ramp_down_rate,
         minimum_runtime=minimum_runtime,
         time_interval_hours=time_interval_hours,
-        force_full_load_hours=force_full_load_hours
+        force_full_load_hours=force_full_load_hours,
     )
 
     merged_data["total_electricity_demand_with_flexible_power"] = np.where(

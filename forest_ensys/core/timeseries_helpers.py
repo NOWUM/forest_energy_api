@@ -7,9 +7,7 @@ from datetime import timedelta
 import numpy as np
 
 
-def ensure_consistent_granularity(
-    df, method="mean"
-) -> tuple[pd.DataFrame, float]:
+def ensure_consistent_granularity(df, method="mean") -> tuple[pd.DataFrame, float]:
     """
     Ensures that the DataFrame has a consistent granularity.
 
@@ -82,7 +80,9 @@ def get_reference_day(date):
     return ref_date.date()
 
 
-def select_peaks_no_overlap(day_df, window_size, price_col, kind="min"):
+def select_peaks_no_overlap(
+    day_df, window_size, price_col, time_window_start, time_window_end, kind="min"
+):
     """
     Select up to two non-overlapping peak timestamps (min or max) between 6:00 and 21:59.
     Each window is [peak_time - 2h, peak_time + 2h), i.e. 16 quarters.
@@ -90,8 +90,13 @@ def select_peaks_no_overlap(day_df, window_size, price_col, kind="min"):
     Returns a list of peak timestamps.
     """
     # Only consider 6:00 to 21:59 (so window fits in day)
-    mask = (day_df["timestamp"].dt.hour >= 6) & (day_df["timestamp"].dt.hour <= 21)
-    df = day_df[mask].copy()
+    if time_window_start and time_window_end is not None:
+        mask = (day_df["timestamp"].dt.hour >= time_window_start) & (
+            day_df["timestamp"].dt.hour <= time_window_end
+        )
+        df = day_df[mask].copy()
+    else:
+        df = day_df.copy()
     if df.empty:
         return []
     # Sort by price
@@ -122,6 +127,8 @@ def calculate_dynamic_network_fee(
     relative_network_fee_reduction,
     relative_network_fee_surcharge,
     window_size,
+    time_window_start,
+    time_window_end,
     use_reference_day: bool = True,
 ):
     merged_data = merged_data.copy()
@@ -133,10 +140,20 @@ def calculate_dynamic_network_fee(
     peak_info = {}
     for date, group in merged_data.groupby("date"):
         min_peaks = select_peaks_no_overlap(
-            group, window_size, price_col="electricity_price", kind="min"
+            group,
+            window_size,
+            price_col="electricity_price",
+            time_window_start=time_window_start,
+            time_window_end=time_window_end,
+            kind="min",
         )
         max_peaks = select_peaks_no_overlap(
-            group, window_size, price_col="electricity_price", kind="max"
+            group,
+            window_size,
+            price_col="electricity_price",
+            time_window_start=time_window_start,
+            time_window_end=time_window_end,
+            kind="max",
         )
         peak_info[date] = {"min_peaks": min_peaks, "max_peaks": max_peaks}
 
@@ -188,13 +205,15 @@ def calculate_dynamic_network_fee(
 
     # Step 4: Calculate dynamic price
     merged_data["electricity_price"] = merged_data.apply(
-        lambda row: row["electricity_price"]
-        + (
-            network_fee_value * (1 - relative_network_fee_reduction)
-            if row["window_type"] == 1
-            else network_fee_value * (1 + relative_network_fee_surcharge)
-            if row["window_type"] == 2
-            else network_fee_value
+        lambda row: (
+            row["electricity_price"]
+            + (
+                network_fee_value * (1 - relative_network_fee_reduction)
+                if row["window_type"] == 1
+                else network_fee_value * (1 + relative_network_fee_surcharge)
+                if row["window_type"] == 2
+                else network_fee_value
+            )
         ),
         axis=1,
     )
