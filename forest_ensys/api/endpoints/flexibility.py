@@ -449,7 +449,7 @@ def optimize_dryers(
         description="The relative surcharge of the network fee for inflexible loads.",
     ),
     window_size: int = Query(
-        2,
+        4,
         description="The window size for the dynamic network fee calculation in hours.",
     ),
     full_load_hours: int = Query(

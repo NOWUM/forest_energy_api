@@ -104,8 +104,8 @@ def select_peaks_no_overlap(day_df, window_size, price_col, kind="min"):
     for _, row in sorted_df.iterrows():
         peak_time = row["timestamp"]
         # Build set of all 15-min timestamps in the 4h window
-        window_start = peak_time - timedelta(hours=window_size, minutes=15)
-        window_end = peak_time + timedelta(hours=window_size)
+        window_start = peak_time - timedelta(hours=window_size / 2, minutes=15)
+        window_end = peak_time + timedelta(hours=window_size / 2)
         window_intervals = set(pd.date_range(window_start, window_end, freq="15min"))
         # Check for overlap with already selected windows
         if not window_intervals & used_intervals:
@@ -154,8 +154,8 @@ def calculate_dynamic_network_fee(
         max_peaks = peak_info[ref_date]["max_peaks"]
         # Low price windows
         for peak_time in min_peaks:
-            window_start = peak_time - timedelta(hours=window_size, minutes=15)
-            window_end = peak_time + timedelta(hours=window_size)
+            window_start = peak_time - timedelta(hours=window_size / 2, minutes=15)
+            window_end = peak_time + timedelta(hours=window_size / 2)
             mask = (
                 (merged_data["date"] == date)
                 & (merged_data["timestamp"].dt.time >= window_start.time())
@@ -165,8 +165,8 @@ def calculate_dynamic_network_fee(
 
         # High price windows
         for peak_time in max_peaks:
-            window_start = peak_time - timedelta(hours=window_size, minutes=15)
-            window_end = peak_time + timedelta(hours=window_size)
+            window_start = peak_time - timedelta(hours=window_size / 2, minutes=15)
+            window_end = peak_time + timedelta(hours=window_size / 2)
             mask = (
                 (merged_data["date"] == date)
                 & (merged_data["timestamp"].dt.time >= window_start.time())
