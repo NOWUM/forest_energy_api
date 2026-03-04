@@ -452,6 +452,10 @@ def optimize_dryers(
         2,
         description="The window size for the dynamic network fee calculation in hours.",
     ),
+    full_load_hours: int = Query(
+        7000,
+        description="The full load hours that the optimizer should not fall short of.",
+    )
 ) -> schemas.OptimizationResult:
     """
     Optimizes the use of electric heating using Pyomo.
@@ -660,6 +664,7 @@ def optimize_dryers(
         ramp_down_rate=ramp_down_rate,
         minimum_runtime=minimum_runtime,
         time_interval_hours=time_interval_hours,
+        force_full_load_hours=None if full_load_hours is 0 else full_load_hours
     )
 
     merged_data["total_electricity_demand_with_flexible_power"] = np.where(

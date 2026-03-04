@@ -35,6 +35,7 @@ def optimize_dryers(
     ramp_down_rate: int = 1,
     minimum_runtime: int = 1,
     time_interval_hours: float = 1,
+    force_full_load_hours: int = None,
 ) -> dict:
     """
     Optimizes the use of flexible power for electric heating in a dryer system.
@@ -53,6 +54,7 @@ def optimize_dryers(
     - ramp_down_rate: Maximum ramp-down rate for electric heating (kW/h).
     - minimum_runtime: Minimum runtime for electric heating (h).
     - time_interval_hours: Time interval for the optimization (h).
+    - force_full_load_hours: If other than None, the optimization will force this number for the full load hours of the ekectricity demand.
     Returns:
     - A dictionary containing the optimized results.
     """
@@ -162,10 +164,12 @@ def optimize_dryers(
 
     def effective_total_demand(m, t):
         if m.window_type[t] != 1:
+            # not low price window (high price window or no window)
             return m.electricity_demand[t] + (
                 m.electric_power_used[t] * time_interval_hours
             )
         else:
+            # low price window
             return m.electricity_demand[t]
 
     def max_total_demand_rule(m, t):
@@ -174,14 +178,18 @@ def optimize_dryers(
     model.max_total_demand_constraint = Constraint(model.T, rule=max_total_demand_rule)
 
     def full_load_hours_constraint_rule(m):
+        flh_ratio = round(force_full_load_hours / (24 * 365), 2)
         total_demand = sum(effective_total_demand(m, t) for t in m.T)
         return total_demand >= (
-            0.8 * time_interval_hours * num_periods
+            flh_ratio * time_interval_hours * num_periods
         ) * m.max_total_demand * (
             1 / time_interval_hours
         )  # 0.8 is the minimum full load hours which is 7000 for one year
 
-    model.full_load_hours_constraint = Constraint(rule=full_load_hours_constraint_rule)
+    if force_full_load_hours is not None:
+        model.full_load_hours_constraint = Constraint(
+            rule=full_load_hours_constraint_rule
+        )
 
     def total_cost_rule(m):
         electricity_cost = sum(
