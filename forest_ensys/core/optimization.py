@@ -35,7 +35,7 @@ def optimize_dryers(
     ramp_down_rate: int = 1,
     minimum_runtime: int = 1,
     time_interval_hours: float = 1,
-    force_full_load_hours: int = None,
+    force_full_load_hours: int = 7000,
 ) -> dict:
     """
     Optimizes the use of flexible power for electric heating in a dryer system.
@@ -186,7 +186,7 @@ def optimize_dryers(
             1 / time_interval_hours
         )  # 0.8 is the minimum full load hours which is 7000 for one year
 
-    if force_full_load_hours is not None:
+    if force_full_load_hours > 0:
         model.full_load_hours_constraint = Constraint(
             rule=full_load_hours_constraint_rule
         )
