@@ -84,13 +84,12 @@ def select_peaks_no_overlap(
     day_df, window_size, price_col, time_window_start, time_window_end, kind="min"
 ):
     """
-    Select up to two non-overlapping peak timestamps (min or max) between 6:00 and 21:59.
+    Select up to two non-overlapping peak timestamps (min or max) between time_window_start and time_window_end.
     Each window is [peak_time - 2h, peak_time + 2h), i.e. 16 quarters.
     Windows must not overlap.
     Returns a list of peak timestamps.
     """
-    # Only consider 6:00 to 21:59 (so window fits in day)
-    if time_window_start and time_window_end is not None:
+    if time_window_start is not None and time_window_end is not None:
         mask = (day_df["timestamp"].dt.hour >= time_window_start) & (
             day_df["timestamp"].dt.hour <= time_window_end
         )
@@ -104,18 +103,15 @@ def select_peaks_no_overlap(
         sorted_df = df.sort_values(price_col, ascending=True)
     else:
         sorted_df = df.sort_values(price_col, ascending=False)
-    used_intervals = set()
     peaks = []
     for _, row in sorted_df.iterrows():
         peak_time = row["timestamp"]
-        # Build set of all 15-min timestamps in the 4h window
-        window_start = peak_time - timedelta(hours=window_size / 2, minutes=15)
-        window_end = peak_time + timedelta(hours=window_size / 2)
-        window_intervals = set(pd.date_range(window_start, window_end, freq="15min"))
-        # Check for overlap with already selected windows
-        if not window_intervals & used_intervals:
+        too_close = any(
+            abs((peak_time - p).total_seconds()) < window_size * 3600
+            for p in peaks
+        )
+        if not too_close:
             peaks.append(peak_time)
-            used_intervals.update(window_intervals)
         if len(peaks) == 2:
             break
     return sorted(peaks)
@@ -160,36 +156,58 @@ def calculate_dynamic_network_fee(
     # Step 2: For each day, apply the reference day's windows
     merged_data["in_low_window"] = False
     merged_data["in_high_window"] = False
+
+    tz = merged_data["timestamp"].dt.tz
+
     for date in merged_data["date"].unique():
         if use_reference_day:
             ref_date = get_reference_day(pd.Timestamp(date))
         else:
             ref_date = date
+
         if ref_date not in peak_info:
             continue
-        min_peaks = peak_info[ref_date]["min_peaks"]
-        max_peaks = peak_info[ref_date]["max_peaks"]
-        # Low price windows
-        for peak_time in min_peaks:
-            window_start = peak_time - timedelta(hours=window_size / 2, minutes=15)
-            window_end = peak_time + timedelta(hours=window_size / 2)
-            mask = (
-                (merged_data["date"] == date)
-                & (merged_data["timestamp"].dt.time >= window_start.time())
-                & (merged_data["timestamp"].dt.time < window_end.time())
-            )
-            merged_data.loc[mask, "in_low_window"] = True
 
-        # High price windows
-        for peak_time in max_peaks:
-            window_start = peak_time - timedelta(hours=window_size / 2, minutes=15)
-            window_end = peak_time + timedelta(hours=window_size / 2)
-            mask = (
-                (merged_data["date"] == date)
-                & (merged_data["timestamp"].dt.time >= window_start.time())
-                & (merged_data["timestamp"].dt.time < window_end.time())
-            )
-            merged_data.loc[mask, "in_high_window"] = True
+        # Anchor the target day for window reconstruction
+        target_start = pd.Timestamp(date)
+        if tz is not None:
+            target_start = target_start.tz_localize(tz)
+        target_end = target_start + timedelta(days=1)  # exclusive
+
+        for window_col, peaks in (
+            ("in_low_window",  peak_info[ref_date]["min_peaks"]),
+            ("in_high_window", peak_info[ref_date]["max_peaks"]),
+        ):
+            for peak_time in peaks:
+                window_start = peak_time - timedelta(hours=window_size / 2, minutes=15)
+                window_end   = peak_time + timedelta(hours=window_size / 2)
+
+                # Reconstruct window using time components, anchored to target date
+                ts_start = target_start.replace(
+                    hour=window_start.hour, minute=window_start.minute,
+                    second=0, microsecond=0
+                )
+                ts_end = target_start.replace(
+                    hour=window_end.hour, minute=window_end.minute,
+                    second=0, microsecond=0
+                )
+
+                # If end time < start time, the window crosses midnight → extend to next day
+                if ts_end <= ts_start:
+                    ts_end += timedelta(days=1)
+
+                # Cap to current day — guarantees one contiguous block per peak
+                ts_start = max(ts_start, target_start)
+                ts_end   = min(ts_end,   target_end)
+
+                if ts_start >= ts_end:
+                    continue  # window doesn't touch this day at all
+
+                mask = (
+                    (merged_data["timestamp"] >= ts_start)
+                    & (merged_data["timestamp"] < ts_end)
+                )
+                merged_data.loc[mask, window_col] = True
 
     # Step 3: High price window takes precedence
     # merged_data['window_type'] = np.where(
