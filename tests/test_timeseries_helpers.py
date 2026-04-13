@@ -282,58 +282,6 @@ class TestSelectPeaksNoOverlap:
         assert 3 not in hours, "Hour 3 is outside the allowed window"
         assert 10 in hours
 
-    def test_start_hour_zero_not_excluded(self):
-        """
-        time_window_start=0 must NOT be treated as falsy.
-        This was the Python precedence bug: `if time_window_start and ...`
-        would skip the mask when start=0.
-        """
-        # Cheapest price is at 01:00, second at 10:00
-        # With start=0, end=21: both hours are in range → both could be selected
-        # The key test: start=0 constraint IS applied (not silently disabled)
-        day = make_day(price_overrides={1: 5, 10: 6, 23: 4})
-        peaks_with_constraint = select_peaks_no_overlap(
-            day,
-            WINDOW_SIZE,
-            "electricity_price",
-            time_window_start=0,
-            time_window_end=21,
-            kind="min",
-        )
-        peaks_no_constraint = select_peaks_no_overlap(
-            day,
-            WINDOW_SIZE,
-            "electricity_price",
-            time_window_start=None,
-            time_window_end=None,
-            kind="min",
-        )
-        hours_constrained = get_peak_hours(peaks_with_constraint)
-        hours_unconstrained = get_peak_hours(peaks_no_constraint)
-
-        # With constraint end=21: hour 23 excluded
-        assert 23 not in hours_constrained
-        # Without constraint: hour 23 is eligible
-        assert 23 in hours_unconstrained
-
-    def test_none_constraints_allow_24h_selection(self):
-        """When both constraints are None, peaks from any hour are eligible."""
-        # Cheapest at 02:00 and 22:00 — both outside old 6-21 hard constraint
-        day = make_day(price_overrides={2: 5, 22: 6})
-        peaks = select_peaks_no_overlap(
-            day,
-            WINDOW_SIZE,
-            "electricity_price",
-            time_window_start=None,
-            time_window_end=None,
-            kind="min",
-        )
-        hours = get_peak_hours(peaks)
-        assert 2 in hours, "Hour 2 should be reachable in 24h mode"
-        assert 22 in hours, "Hour 22 should be reachable in 24h mode"
-
-    # --- Edge cases ---
-
     def test_empty_day_returns_empty(self):
         """Empty DataFrame returns empty list."""
         day = pd.DataFrame(
@@ -984,4 +932,187 @@ class TestCalculateDynamicNetworkFeeMultipleDays:
         assert divergent_days >= 4, (
             f"Expected BK4 and predictive to diverge on most days with volatile prices, "
             f"but only {divergent_days}/7 days differed — price patterns may be too similar"
+        )
+
+    def test_adjacent_peaks_produce_non_overlapping_tagged_windows(self):
+        """
+        Two peaks exactly window_size hours apart are both accepted by the
+        distance check. Their tagged windows must also be non-overlapping —
+        i.e. window 2 must start exactly where window 1 ends.
+        This catches the minutes=15 bug in start_offset.
+        """
+        # Peaks at 08:00 and 14:00 — exactly 6h apart → both accepted
+        data = make_multi_day(
+            "2024-01-01",
+            n_days=2,
+            daily_overrides={"2024-01-01": {8: 5, 14: 6}},
+        )
+        params = {**self._base_params(), "window_size": 6}
+        result = calculate_dynamic_network_fee(data, use_reference_day=True, **params)
+        jan2 = result[result["timestamp"].dt.date == date(2024, 1, 2)]
+        low = jan2[jan2["window_type"] == 1].reset_index(drop=True)
+
+        # Count distinct contiguous blocks
+        transitions = low["timestamp"].diff().dt.total_seconds()
+        gaps = (transitions > 900).sum()  # gap > 1 interval = new block
+        assert len(low) == 2 * WINDOW_SIZE * 4, (
+            f"Two adjacent windows must cover exactly {2 * WINDOW_SIZE * 4} slots, got {len(low)}"
+        )
+
+        # Window 1 must end at 11:00-1slot=10:45, window 2 must start at 11:00
+        boundary = pd.Timestamp("2024-01-02 11:00", tz="UTC")
+        assert (low["timestamp"] == boundary).any(), (
+            "Slot at 11:00 must be tagged — start of window 2"
+        )
+        before_w1 = pd.Timestamp("2024-01-02 04:45", tz="UTC")
+        assert not (jan2[jan2["timestamp"] == before_w1]["window_type"] == 1).any(), (
+            "Slot before window 1 must not be tagged"
+        )
+
+    def test_window_size_exactly_matches_tagged_slots(self):
+        """Total tagged slots must equal exactly n_peaks * window_size * 4."""
+        # Two peaks at known hours (8h and 20h — 12h apart, clearly non-overlapping)
+        data = make_multi_day(
+            "2024-01-01",
+            n_days=2,
+            daily_overrides={"2024-01-01": {8: 1, 20: 2}},  # 2 clear min peaks
+        )
+        window_size = 6
+        params = {**self._base_params(), "window_size": window_size}
+        result = calculate_dynamic_network_fee(data, use_reference_day=True, **params)
+        jan2 = result[result["timestamp"].dt.date == date(2024, 1, 2)]
+        low_slots = (jan2["window_type"] == 1).sum()
+        expected_slots = 2 * window_size * 4  # 2 peaks × 6h × 4 slots/h = 48
+
+        assert low_slots == expected_slots, (
+            f"Expected {expected_slots} slots (2 peaks × {window_size}h × 4), "
+            f"got {low_slots}"
+        )
+
+    def test_24h_mode_peaks_never_cross_day_boundary(self):
+        """
+        In 24h mode (no time constraints), the auto-constraint must ensure
+        no peak is selected so close to midnight that its window would
+        extend into an adjacent calendar day.
+        """
+        rng = np.random.default_rng(seed=77)
+        for _ in range(30):
+            timestamps = pd.date_range("2024-03-01 00:00", periods=96, freq="15min")
+            df = pd.DataFrame(
+                {"timestamp": timestamps, "electricity_price": rng.uniform(0, 100, 96)}
+            )
+            peaks = select_peaks_no_overlap(
+                df,
+                WINDOW_SIZE,
+                "electricity_price",
+                time_window_start=None,
+                time_window_end=None,
+                kind="min",
+            )
+            for p in peaks:
+                window_start_h = p.hour - WINDOW_SIZE / 2
+                window_end_h = p.hour + WINDOW_SIZE / 2
+                assert window_start_h >= 0, (
+                    f"Peak at {p.hour}h: window starts at {window_start_h}h — "
+                    f"crosses into previous day"
+                )
+                assert window_end_h <= 24, (
+                    f"Peak at {p.hour}h: window ends at {window_end_h}h — "
+                    f"crosses into next day"
+                )
+
+    def test_start_hour_zero_not_excluded(self):
+        """
+        time_window_start=0 must NOT be treated as falsy (Python bool(0) = False).
+        With start=0, peaks at hour 2 ARE eligible.
+        With start=None (24h auto-constraint, window_size=6), effective_start=3,
+        so hour 2 is NOT eligible — proving the two modes behave differently.
+        """
+        day = make_day(price_overrides={2: 5, 10: 6, 18: 7})
+
+        peaks_explicit_zero = select_peaks_no_overlap(
+            day,
+            WINDOW_SIZE,
+            "electricity_price",
+            time_window_start=0,
+            time_window_end=21,
+            kind="min",
+        )
+        peaks_auto = select_peaks_no_overlap(
+            day,
+            WINDOW_SIZE,
+            "electricity_price",
+            time_window_start=None,
+            time_window_end=None,
+            kind="min",
+        )
+        # start=0 → hour 2 eligible
+        assert 2 in get_peak_hours(peaks_explicit_zero), (
+            "time_window_start=0 must not be falsy — hour 2 must be reachable"
+        )
+        # None → auto effective_start=3 → hour 2 NOT eligible
+        assert 2 not in get_peak_hours(peaks_auto), (
+            "24h auto-constraint effective_start=3 must exclude hour 2"
+        )
+
+    def test_none_constraints_allow_early_morning_selection(self):
+        """
+        In 24h mode (None), the auto-constraint allows peaks from effective_start
+        (= window_size/2) onward — earlier than the default 6h constraint.
+        A peak at hour 4 is reachable with None but not with start=6.
+        """
+        # With window_size=6: effective_start=3 → hour 4 is within [3, 21]
+        day = make_day(price_overrides={4: 5, 14: 6})
+
+        peaks_no_constraint = select_peaks_no_overlap(
+            day,
+            WINDOW_SIZE,
+            "electricity_price",
+            time_window_start=None,
+            time_window_end=None,
+            kind="min",
+        )
+        peaks_6_21 = select_peaks_no_overlap(
+            day,
+            WINDOW_SIZE,
+            "electricity_price",
+            time_window_start=6,
+            time_window_end=21,
+            kind="min",
+        )
+        assert 4 in get_peak_hours(peaks_no_constraint), (
+            "Hour 4 must be reachable in 24h mode (effective_start=3)"
+        )
+        assert 4 not in get_peak_hours(peaks_6_21), (
+            "Hour 4 must be excluded by explicit time_window_start=6"
+        )
+
+    def test_boundary_peak_window_capped_at_end_of_day(self):
+        """
+        In 24h mode, a peak at the latest allowed hour (effective_end = 24 - window_size/2)
+        produces a window that ends exactly at midnight — capped cleanly at 23:45,
+        no timestamps from the next day are tagged.
+        """
+        # window_size=6: effective_end=21 → peak at 21:00 → window [18:00, 00:00)
+        data = make_multi_day(
+            "2024-01-01",
+            n_days=1,
+            daily_overrides={"2024-01-01": {21: 1}},
+        )
+        params = {
+            **self._base_params(),
+            "time_window_start": None,
+            "time_window_end": None,
+            "window_size": 6,
+        }
+        result = calculate_dynamic_network_fee(data, use_reference_day=False, **params)
+        # 23:45 must be tagged
+        last_slot = result[result["timestamp"].dt.strftime("%H:%M") == "23:45"]
+        assert (last_slot["window_type"] == 1).any(), (
+            "23:45 must be tagged — window ends at midnight, capped to 23:45"
+        )
+
+        # No next-day timestamps should exist (only 1 day of data)
+        assert result["timestamp"].dt.date.nunique() == 1, (
+            "No next-day spillover — auto-constraint prevents midnight crossing"
         )
