@@ -572,6 +572,15 @@ def optimize_dryers(
                 "source": "constant",
             }
         )
+    if time_window_start_hour is not None and time_window_end_hour is not None:
+        if time_window_start_hour < window_size / 2:
+            raise HTTPException(status_code=400,
+                detail=f"time_window_start must be ≥ window_size/2 ({window_size/2:.0f}h) "
+                    f"to prevent windows crossing midnight")
+        if time_window_end_hour > 24 - window_size / 2:
+            raise HTTPException(status_code=400,
+                detail=f"time_window_end must be ≤ {24 - window_size/2:.0f}h "
+                    f"to prevent windows crossing midnight")
 
     # Merge dataframes and check granularity
     merged_data = check_granularity_and_merge(footprint_data, heat_demand, method="sum")
