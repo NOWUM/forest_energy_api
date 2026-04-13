@@ -90,12 +90,18 @@ def select_peaks_no_overlap(
     Returns a list of peak timestamps.
     """
     if time_window_start is not None and time_window_end is not None:
-        mask = (day_df["timestamp"].dt.hour >= time_window_start) & (
-            day_df["timestamp"].dt.hour <= time_window_end
-        )
-        df = day_df[mask].copy()
+        effective_start = time_window_start
+        effective_end   = time_window_end
     else:
-        df = day_df.copy()
+        # 24h mode: constrain peaks so windows always stay within one calendar day
+        effective_start = int(window_size / 2)          # e.g. 3 for window_size=6
+        effective_end   = int(24 - window_size / 2) # e.g. 20 for window_size=6
+
+    mask = (
+        (day_df["timestamp"].dt.hour >= effective_start)
+        & (day_df["timestamp"].dt.hour <= effective_end)
+    )
+    df = day_df[mask].copy()
     if df.empty:
         return []
     # Sort by price
@@ -179,29 +185,25 @@ def calculate_dynamic_network_fee(
             ("in_high_window", peak_info[ref_date]["max_peaks"]),
         ):
             for peak_time in peaks:
-                window_start = peak_time - timedelta(hours=window_size / 2, minutes=15)
-                window_end   = peak_time + timedelta(hours=window_size / 2)
+                # Compute peak's own day start (matching target timezone)
+                peak_day_start = pd.Timestamp(peak_time.date())
+                if tz is not None:
+                    peak_day_start = peak_day_start.tz_localize(tz)
 
-                # Reconstruct window using time components, anchored to target date
-                ts_start = target_start.replace(
-                    hour=window_start.hour, minute=window_start.minute,
-                    second=0, microsecond=0
-                )
-                ts_end = target_start.replace(
-                    hour=window_end.hour, minute=window_end.minute,
-                    second=0, microsecond=0
-                )
+                # Offsets from peak's day start — preserves cross-midnight correctly
+                start_offset = (peak_time - timedelta(hours=window_size / 2)) - peak_day_start
+                end_offset   = (peak_time + timedelta(hours=window_size / 2)) - peak_day_start
 
-                # If end time < start time, the window crosses midnight → extend to next day
-                if ts_end <= ts_start:
-                    ts_end += timedelta(days=1)
+                # Apply same offsets to the target date
+                ts_start = target_start + start_offset
+                ts_end   = target_start + end_offset
 
-                # Cap to current day — guarantees one contiguous block per peak
+                # Cap to target day
                 ts_start = max(ts_start, target_start)
                 ts_end   = min(ts_end,   target_end)
 
                 if ts_start >= ts_end:
-                    continue  # window doesn't touch this day at all
+                    continue
 
                 mask = (
                     (merged_data["timestamp"] >= ts_start)
